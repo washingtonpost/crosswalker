@@ -1,38 +1,137 @@
-.App {
-  text-align: center;
-}
-
 .App-logo {
-  height: 40vmin;
+  height: 46px;
   pointer-events: none;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  .App-logo {
-    animation: App-logo-spin infinite 20s linear;
-  }
+h1 {
+  font-size: 50px;
+  margin: 0 0 40px 0;
 }
 
-.App-header {
-  background-color: #282c34;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  font-size: calc(10px + 2vmin);
+h1 *,
+button * {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+h1 img {
+  margin-right: 15px;
+}
+
+button {
+  padding: 6px 8px;
+  border-radius: 2px;
   color: white;
+  border: none;
+  font-size: 20px;
+  margin-right: 8px;
 }
 
-.App-link {
-  color: #61dafb;
+button.slim {
+  padding: 2px 8px;
 }
 
-@keyframes App-logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+button img {
+  margin: 0 5px 0 2px;
+}
+
+button.primary-button {
+  background: var(--primary);
+}
+
+button.secondary-button {
+  background: var(--secondary);
+}
+
+button.inverted-button {
+  background: var(--black);
+  color: var(--accent);
+}
+
+label {
+  display: inline-block;
+}
+
+label * {
+  pointer-events: none;
+}
+
+.hidden {
+  display: none;
+}
+
+table {
+  font-family: monospace;
+  font-size: 15px;
+  border-collapse: collapse;
+  margin: 20px 0;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 3px 12px;
+}
+
+.hoverable td,
+th {
+  cursor: pointer;
+}
+
+th {
+  border-bottom: solid 1.5px white;
+  padding-bottom: 4px;
+}
+
+tr:first-child td {
+  padding-top: 4px;
+}
+
+td.hover,
+th.hover {
+  background: var(--black);
+  color: var(--accent);
+}
+
+.button-section {
+  margin: 10px 0;
+}
+
+.column-selection {
+  font-size: 14px;
+  background: var(--primary);
+  padding: 2px 4px;
+  border-radius: 3px;
+  margin: 3px;
+}
+
+.remove-action {
+  display: inline-block;
+  margin-right: 5px;
+}
+
+.warn {
+  background: var(--secondary);
+  color: var(--accent);
+  font-size: 15px;
+  display: table;
+  padding: 12px 17px;
+  border-radius: 3px;
+}
+
+.extra-top {
+  margin-top: 30px;
+}
+
+.tick {
+  background: var(--primary);
+  border-radius: 2px;
+  height: 28px;
+  width: 6px;
+  margin-right: 3px;
+  display: inline-block;
+}
+
+.tick.lit {
+  background: var(--accent);
 }
