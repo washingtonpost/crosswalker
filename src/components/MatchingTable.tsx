@@ -1,4 +1,4 @@
-import { AppReducer, MatchingState, UndoRedo } from "../state";
+import { AppReducer, Match, MatchingState, MatchRow, UndoRedo } from "../state";
 import DataEditor, {
   GridCellKind,
   GridColumn,
@@ -8,60 +8,12 @@ import { useState } from "react";
 import { colors } from "../utils/color";
 import tinycolor from "tinycolor2";
 import { Button } from "./Button";
-import { extractParts } from "../utils/match";
+import { extractParts, FilteredMatchRows } from "../utils/match";
 import { ResetButton } from "./ResetButton";
 
 const COL_WIDTH = 200;
 
-// function drawCell() {}
-
 const partSplit = /([^a-zA-Z0-9]+)/g;
-
-function drawTextWithMatches(
-  ctx: CanvasRenderingContext2D,
-  method: "fill" | "stroke",
-  targetText: string,
-  sourceText: string,
-  x: number,
-  y: number
-) {
-  const drawText =
-    method === "fill" ? ctx.fillText.bind(ctx) : ctx.strokeText.bind(ctx);
-
-  const targetParts = targetText.split(partSplit);
-  const sourceParts = extractParts(sourceText).map((x) => x.toLowerCase());
-
-  for (let i = 0; i < targetParts.length; i++) {
-    const isPart = i % 2 === 0;
-    const str = targetParts[i];
-    const isBold = isPart && sourceParts.includes(str.toLowerCase());
-
-    const measurements = ctx.measureText(str);
-    ctx.save();
-    if (isBold) {
-      x += 3;
-      // ctx.strokeStyle = colors.fgColor;
-      // ctx.lineWidth = 3;
-      // ctx.lineJoin = "round";
-      // ctx.miterLimit = 2;
-      ctx.font = `bold ${ctx.font}`;
-      // ctx.strokeText(str, x, y);
-      ctx.fillStyle = colors.primary;
-      ctx.fillRect(x - 2, y - 10, measurements.width + 4, 20);
-      ctx.fillStyle = colors.fgColor;
-
-      ctx.strokeStyle = colors.fgColor;
-      ctx.lineWidth = 0.2;
-      ctx.lineJoin = "round";
-      ctx.miterLimit = 2;
-      // ctx.font = `bold ${ctx.font}`;
-      ctx.strokeText(str, x, y);
-    }
-    drawText(str, x, y);
-    ctx.restore();
-    x += measurements.width + (isBold ? 3 : 0);
-  }
-}
 
 export function MatchingTable({
   app,
@@ -74,6 +26,13 @@ export function MatchingTable({
   const [colWidths, setColWidths] = useState<{ [key: number]: number }>({});
   const [gridSelection, setGridSelection] = useState<GridSelection>();
   const [undo, redo] = useUndoRedo();
+  const [rowFilter, setRowFilter] = useState<"all" | "complete" | "incomplete">(
+    "all"
+  );
+  const [colFilter, setColFilter] = useState<"all" | "hideMatched">(
+    "hideMatched"
+  );
+  const [showMeta, setShowMeta] = useState<"show" | "hide">("show");
 
   if (app.matches.length === 0) return null;
 
@@ -99,23 +58,138 @@ export function MatchingTable({
     });
   }
 
-  function isUserMatched(text: string): boolean {
+  // function isUserMatched(text: string): boolean {
+  //   const entries = Object.entries(app.userMatches);
+  //   for (const [key, value] of entries) {
+  //     if (!value) continue;
+  //     const parts = key.split(",");
+  //     const x = parseInt(parts[0]);
+  //     const y = parseInt(parts[1]);
+  //     if (app.matches[y].rankedMatches[x].value === text) return true;
+  //   }
+  //   return false;
+  // }
+
+  function getUserMatched(matchCell: Match): boolean {
+    return app.userMatches[`${matchCell.col},${matchCell.row}`];
+  }
+
+  function getAllUserMatches(): Match[] {
     const entries = Object.entries(app.userMatches);
+    const results: Match[] = [];
     for (const [key, value] of entries) {
       if (!value) continue;
       const parts = key.split(",");
       const x = parseInt(parts[0]);
       const y = parseInt(parts[1]);
-      if (app.matches[y].rankedMatches[x].value === text) return true;
+      results.push(app.matches[y].rankedMatches[x]);
     }
-    return false;
+    return results;
   }
+
+  const userMatches = getAllUserMatches();
+  const userMatchTexts = userMatches.map((x) => x.value);
+
+  function isMatchedElsewhere(match: Match): boolean {
+    return userMatchTexts.includes(match.value);
+  }
+
+  const matchEntries = Object.entries(app.userMatches);
+  const rowsWithMatches: { [row: number]: boolean } = {};
+  for (const [key, value] of matchEntries) {
+    if (value) {
+      const row = parseInt(key.split(",")[1]);
+      rowsWithMatches[row] = true;
+    }
+  }
+
+  function rowHasMatch(row: number): boolean {
+    return rowsWithMatches[row];
+  }
+
+  function drawTextWithMatches(
+    ctx: CanvasRenderingContext2D,
+    method: "fill" | "stroke",
+    targetText: string,
+    sourceText: string,
+    x: number,
+    y: number,
+    sizeOffset: number
+  ) {
+    const drawText =
+      method === "fill" ? ctx.fillText.bind(ctx) : ctx.strokeText.bind(ctx);
+
+    const targetParts = targetText.split(partSplit);
+    const sourceParts = extractParts(sourceText).map((x) => x.toLowerCase());
+
+    for (let i = 0; i < targetParts.length; i++) {
+      const isPart = i % 2 === 0;
+      const str = targetParts[i];
+      const isBold = isPart && sourceParts.includes(str.toLowerCase());
+
+      const measurements = ctx.measureText(str);
+      ctx.save();
+      if (isBold) {
+        x += 3;
+        // ctx.strokeStyle = colors.fgColor;
+        // ctx.lineWidth = 3;
+        // ctx.lineJoin = "round";
+        // ctx.miterLimit = 2;
+        ctx.font = `bold ${ctx.font}`;
+        // ctx.strokeText(str, x, y);
+        ctx.fillStyle = colors.primary;
+        ctx.fillRect(
+          x - 2,
+          y - 10 - sizeOffset / 2,
+          measurements.width + 4,
+          20 + sizeOffset
+        );
+        ctx.fillStyle = colors.fgColor;
+
+        ctx.strokeStyle = colors.fgColor;
+        ctx.lineWidth = 0.2;
+        ctx.lineJoin = "round";
+        ctx.miterLimit = 2;
+        // ctx.font = `bold ${ctx.font}`;
+        ctx.strokeText(str, x, y);
+      }
+      drawText(str, x, y);
+      ctx.restore();
+      x += measurements.width + (isBold ? 3 : 0);
+    }
+  }
+
+  const filters = {
+    all: () => true,
+    complete: (matchRow: MatchRow) => rowHasMatch(matchRow.row),
+    incomplete: (matchRow: MatchRow) => !rowHasMatch(matchRow.row),
+  };
+
+  function isMatchCell(match: Match | MatchRow): match is Match {
+    return "col" in match;
+  }
+
+  const filteredMatchRows = new FilteredMatchRows(
+    app.matches,
+    (cell) =>
+      colFilter === "all"
+        ? true
+        : getUserMatched(cell) || !isMatchedElsewhere(cell),
+    (a, b) => {
+      const userMatchedA = getUserMatched(a);
+      const userMatchedB = getUserMatched(b);
+      if (userMatchedA && !userMatchedB) return -1;
+      if (!userMatchedA && userMatchedB) return 1;
+      return 0;
+    },
+    filters[rowFilter]
+  );
 
   return (
     <>
       <DataEditor
         width={"calc(100vw - 64px)"}
-        height={"80vh"}
+        height={"calc(100vh - 190px)"}
         rowMarkers="both"
         rangeSelect="multi-rect"
         freezeColumns={1}
@@ -162,8 +236,10 @@ export function MatchingTable({
             gridSelection != null &&
             gridSelection.current != null
           ) {
+            // Press "Enter"
             reducer({
               type: "ToggleUserMatches",
+              data: filteredMatchRows,
               selections: [
                 gridSelection.current.range,
                 ...gridSelection.current.rangeStack,
@@ -213,12 +289,14 @@ export function MatchingTable({
                 gridSelection.current.range,
                 ...gridSelection.current.rangeStack,
               ],
+              data: filteredMatchRows,
               forceState: false,
             });
           }
         }}
         onGridSelectionChange={(gridSelection) => {
           if (gridSelection.current && gridSelection.current.range.x === 0) {
+            // Push grid selection to ensure col 0 (source) isn't selected
             setGridSelection({
               ...gridSelection,
               current: {
@@ -239,16 +317,14 @@ export function MatchingTable({
           setColWidths({ ...colWidths, [colIndex]: newSize });
         }}
         drawCell={({ ctx, rect, cell, row, col }) => {
-          if (cell.kind !== GridCellKind.Text) {
+          if (cell.kind !== GridCellKind.Custom) {
             return false;
           }
 
-          const isBold =
-            col === 1 &&
-            Object.entries(app.userMatches).some(
-              ([key, value]) => value && key.endsWith(`,${row}`)
-            );
-          const isUserMatch = app.userMatches[`${col - 2},${row}`];
+          const matchCell = cell.data as Match | MatchRow;
+          const isBold = col === 1 && rowHasMatch(matchCell.row);
+          const isUserMatch =
+            isMatchCell(matchCell) && getUserMatched(matchCell);
 
           ctx.save();
           if (isBold) {
@@ -260,71 +336,107 @@ export function MatchingTable({
               rect.height - 2
             );
           }
-          ctx.fillStyle = "white";
-          ctx.font = `${isBold ? "bold" : ""} 18px Franklin ITC`;
-          if (isBold || isUserMatch) {
-            ctx.strokeStyle = colors.primary;
-            ctx.lineWidth = 4;
-            ctx.lineJoin = "round";
-            ctx.miterLimit = 2;
+          ctx.restore();
+
+          const draw = (
+            text: string,
+            yOffset = 0,
+            sizeOffset = 0,
+            stroked = true
+          ) => {
+            ctx.save();
+            ctx.translate(0, yOffset);
+            ctx.fillStyle = "white";
+            ctx.font = `${isBold ? "bold" : ""} ${
+              18 + sizeOffset
+            }px Franklin ITC`;
+            if (isBold || isUserMatch) {
+              ctx.strokeStyle = colors.primary;
+              ctx.lineWidth = stroked ? 4 : 2;
+              ctx.lineJoin = "round";
+              ctx.miterLimit = 2;
+              drawTextWithMatches(
+                ctx,
+                "stroke",
+                text,
+                col === 1 || isUserMatch
+                  ? ""
+                  : app.matches[matchCell.row].value,
+                rect.x + 5,
+                rect.y + rect.height / 2 + 1,
+                sizeOffset
+              );
+            }
             drawTextWithMatches(
               ctx,
-              "stroke",
-              cell.data,
-              col === 1 || isUserMatch ? "" : app.matches[row].value,
+              "fill",
+              text,
+              col === 1 || isUserMatch ? "" : app.matches[matchCell.row].value,
               rect.x + 5,
-              rect.y + rect.height / 2 + 1
+              rect.y + rect.height / 2 + 1,
+              sizeOffset
             );
+            ctx.restore();
+          };
+
+          if (showMeta === "show" && matchCell.meta) {
+            draw(matchCell.value, -7, -1, isMatchCell(matchCell));
+            draw(matchCell.meta, 8, -6, isMatchCell(matchCell));
+          } else {
+            draw(matchCell.value, 0, 0, isMatchCell(matchCell));
           }
-          drawTextWithMatches(
-            ctx,
-            "fill",
-            cell.data,
-            col === 1 || isUserMatch ? "" : app.matches[row].value,
-            rect.x + 5,
-            rect.y + rect.height / 2 + 1
-          );
-          ctx.restore();
+
           return true;
         }}
         getCellContent={(cell) => {
           const [column, row] = cell;
-          const match = app.matches[row];
+          const filteredMatches = filteredMatchRows.getRow(row);
+
           if (column === 0) {
             return {
-              kind: GridCellKind.Text,
-              data: match.value,
+              kind: GridCellKind.Custom,
+              data: filteredMatches,
               allowOverlay: false,
-              displayData: match.value,
+              copyData: filteredMatches.value,
             };
           } else {
+            const match = filteredMatches.rankedMatches[column - 1];
+            if (!match) {
+              return {
+                kind: GridCellKind.Text,
+                data: "",
+                allowOverlay: false,
+                displayData: "",
+              };
+            }
             return {
-              kind: GridCellKind.Text,
-              data: match.rankedMatches[column - 1].value,
+              kind: GridCellKind.Custom,
+              data: match,
               allowOverlay: false,
-              displayData: match.rankedMatches[column - 1].value,
-              themeOverride: app.userMatches[`${column - 1},${row}`]
-                ? {
-                    bgCell: colors.accent,
-                    textDark: "black",
-                    accentColor: tinycolor(colors.accent)
-                      .lighten(10)
-                      .toHexString(),
-                    accentLight: tinycolor(colors.accent)
-                      .darken(10)
-                      .toHexString(),
-                  }
-                : isUserMatched(match.rankedMatches[column - 1].value)
-                ? {
-                    bgCell: tinycolor("red").darken(15).toHexString(),
-                    accentLight: tinycolor("red").darken(30).toHexString(),
-                  }
-                : undefined,
+              copyData: match.value,
+              themeOverride:
+                match && getUserMatched(match)
+                  ? {
+                      bgCell: colors.accent,
+                      textDark: "black",
+                      accentColor: tinycolor(colors.accent)
+                        .lighten(10)
+                        .toHexString(),
+                      accentLight: tinycolor(colors.accent)
+                        .darken(10)
+                        .toHexString(),
+                    }
+                  : isMatchedElsewhere(match)
+                  ? {
+                      bgCell: tinycolor("red").darken(15).toHexString(),
+                      accentLight: tinycolor("red").darken(30).toHexString(),
+                    }
+                  : undefined,
             };
           }
         }}
         columns={columns}
-        rows={app.matches.length}
+        rows={filteredMatchRows.numRows}
       />
       <div className="button-section">
         <Button
@@ -340,6 +452,55 @@ export function MatchingTable({
         </Button>
 
         <ResetButton slim={true} app={app} reducer={reducer} />
+
+        <select
+          onInput={(e) =>
+            setRowFilter(
+              (e.target as HTMLSelectElement).value as
+                | "all"
+                | "complete"
+                | "incomplete"
+            )
+          }
+        >
+          <option value="all">
+            Show all rows ({app.matches.length.toLocaleString()})
+          </option>
+          <option value="incomplete">
+            Show incomplete rows (
+            {app.matches
+              .filter((matchRow: MatchRow) => !rowHasMatch(matchRow.row))
+              .length.toLocaleString()}
+            )
+          </option>
+          <option value="complete">
+            Show complete rows (
+            {app.matches
+              .filter((matchRow: MatchRow) => rowHasMatch(matchRow.row))
+              .length.toLocaleString()}
+            )
+          </option>
+        </select>
+        <select
+          onInput={(e) =>
+            setColFilter(
+              (e.target as HTMLSelectElement).value as "all" | "hideMatched"
+            )
+          }
+        >
+          <option value="hideMatched">Hide matched predictions</option>
+          <option value="all">Show matched predictions</option>
+        </select>
+        <select
+          onInput={(e) =>
+            setShowMeta(
+              (e.target as HTMLSelectElement).value as "show" | "hide"
+            )
+          }
+        >
+          <option value="show">Show metadata</option>
+          <option value="hide">Hide metadata</option>
+        </select>
       </div>
     </>
   );

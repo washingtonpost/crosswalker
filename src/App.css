@@ -151,3 +151,12 @@ button.disabled {
   margin-top: 20px;
   padding: 0;
 }
+
+select {
+  margin: 0 5px;
+  background: var(--black);
+  color: var(--fgColor);
+  font: inherit;
+  border-radius: 2px;
+  padding: 0 10px;
+}

@@ -1,7 +1,7 @@
 import React from "react";
 import { fileToTable, Table } from "./utils/extractTable";
 import { createUndoRedo } from "react-undo-redo";
-import { automatchResults } from "./utils/match";
+import { automatchResults, FilteredMatchRows } from "./utils/match";
 
 export type State =
   | WelcomeState
@@ -11,14 +11,19 @@ export type State =
 
 export interface MatchRow {
   value: string;
+  meta?: string;
   index: number;
+  row: number;
   rankedMatches: Match[];
 }
 
 export interface Match {
   score: number;
   value: string;
+  meta?: string;
   index: number;
+  col: number;
+  row: number;
 }
 
 export interface Selection {
@@ -163,6 +168,7 @@ export interface FinishProcessing {
 
 export interface ToggleUserMatches {
   type: "ToggleUserMatches";
+  data: FilteredMatchRows;
   selections: Selection[];
   forceState?: boolean;
 }
@@ -372,7 +378,8 @@ export function appReducer(state: State, action: Action): State {
               x < selection.x + selection.width - 1;
               x++
             ) {
-              if (state.userMatches[`${x},${y}`]) {
+              const matchCell = action.data.getRow(y).rankedMatches[x];
+              if (state.userMatches[`${matchCell.col},${matchCell.row}`]) {
                 allFalse = false;
               } else {
                 allTrue = false;
@@ -397,7 +404,8 @@ export function appReducer(state: State, action: Action): State {
               x < selection.x + selection.width - 1;
               x++
             ) {
-              newMatches[`${x},${y}`] = selectState;
+              const matchCell = action.data.getRow(y).rankedMatches[x];
+              newMatches[`${matchCell.col},${matchCell.row}`] = selectState;
             }
           }
         }

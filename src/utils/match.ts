@@ -1,7 +1,43 @@
 import { distance as fastestLevenshtein } from "fastest-levenshtein";
-import { MatchRow } from "../state";
+import { Match, MatchRow } from "../state";
 
 const NUMBER_RE = /^[0-9]+$/;
+
+export class FilteredMatchRows {
+  readonly cache: { [row: number]: MatchRow } = {};
+
+  constructor(
+    readonly matches: MatchRow[],
+    readonly filter: (match: Match) => boolean,
+    readonly sort: (a: Match, b: Match) => number = () => 0,
+    readonly rowFilter: (matchRow: MatchRow) => boolean = () => true
+  ) {
+    this.matches = matches.filter(this.rowFilter);
+  }
+
+  get numRows(): number {
+    return this.matches.length;
+  }
+
+  getRow(row: number): MatchRow {
+    // Pull from cache if possible
+    const cached = this.cache[row];
+    if (cached != null) return cached;
+
+    // Calculate filtered row
+    const oldRow = this.matches[row];
+    const newRow: MatchRow = {
+      ...oldRow,
+      rankedMatches: oldRow.rankedMatches.filter(this.filter).sort(this.sort),
+    };
+
+    // Update cache
+    this.cache[row] = newRow;
+
+    // Return filetered row
+    return newRow;
+  }
+}
 
 export function partsMatch(s1: string, s2: string): boolean {
   const parts1 = extractParts(s1);

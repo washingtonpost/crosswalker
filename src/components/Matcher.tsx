@@ -36,6 +36,16 @@ export function Matcher({
         (row) => row[app.columnSelections[side].column]
       )
     );
+    const [leftMetas, rightMetas] = (["left", "right"] as const).map((side) => {
+      const meta = app.columnSelections.meta[side];
+      if (meta != null) {
+        return app.tables[meta.tableIndex].rows.map((row) => row[meta.column]);
+      } else {
+        return app.tables[app.columnSelections[side].tableIndex].rows.map(
+          (_) => undefined
+        );
+      }
+    }) as [(string | undefined)[], (string | undefined)[]];
 
     const results: MatchRow[] = [];
     for (let i = 0; i < leftValues.length; i++) {
@@ -43,19 +53,29 @@ export function Matcher({
         setTimeout(() => {
           // Rank everything
           const matches: Match[] = [];
+          const row = results.length;
           for (let j = 0; j < rightValues.length; j++) {
             const score = newEditDistance(leftValues[i], rightValues[j]);
             matches.push({
               score,
               value: rightValues[j],
+              meta: rightMetas[j],
               index: j,
+              col: 0,
+              row,
             });
           }
           matches.sort((a, b) => a.score - b.score);
+          for (let z = 0; z < matches.length; z++) {
+            // Assign match cols
+            matches[z].col = z;
+          }
           results.push({
             value: leftValues[i],
+            meta: leftMetas[i],
             index: i,
             rankedMatches: matches,
+            row,
           });
           // Update progress
           if (i === leftValues.length - 1) {

@@ -205,95 +205,12 @@ function PreviewTable({
 
   return (
     <>
-      <table className={app.setColumnSelection != null ? "hoverable" : ""}>
-        <thead>
-          <tr>
-            {table.headers.map((header, i) => (
-              <th
-                key={i}
-                className={app.hoverColumn === i ? "hover" : ""}
-                onMouseEnter={() =>
-                  reducer({
-                    type: "HoverColumn",
-                    index: i,
-                  })
-                }
-                onMouseLeave={() =>
-                  reducer({
-                    type: "HoverColumn",
-                    index: null,
-                  })
-                }
-                onClick={() =>
-                  reducer({
-                    type: "SelectColumnForSelection",
-                    index: i,
-                  })
-                }
-              >
-                {header}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {table.rows.slice(0, 10).map((row, rowIndex) => (
-            <tr key={rowIndex}>
-              {table.headers.map((header, i) => (
-                <td
-                  key={i}
-                  className={app.hoverColumn === i ? "hover" : ""}
-                  onMouseEnter={() =>
-                    reducer({
-                      type: "HoverColumn",
-                      index: i,
-                    })
-                  }
-                  onMouseLeave={() =>
-                    reducer({
-                      type: "HoverColumn",
-                      index: null,
-                    })
-                  }
-                  onClick={() =>
-                    reducer({
-                      type: "SelectColumnForSelection",
-                      index: i,
-                    })
-                  }
-                >
-                  {row[header]}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <ColumnSelectButton type="leftColumn" />
-      <ColumnSelectButton type="rightColumn" />
-      <p className="button-category-label">Joins (optional):</p>
-      <ColumnSelectButton type="leftJoin" />
-      <ColumnSelectButton type="rightJoin" />
-      <p className="button-category-label">Metadata (optional):</p>
-      <ColumnSelectButton type="leftMeta" />
-      <ColumnSelectButton type="rightMeta" />
       {(() => {
         const colsDiffer = (col1: TableIndex, col2: TableIndex): boolean => {
           return (
             col1.tableIndex === col2.tableIndex && col1.column === col2.column
           );
         };
-
-        if (
-          (app.columnSelections.leftJoin && !app.columnSelections.rightJoin) ||
-          (!app.columnSelections.leftJoin && app.columnSelections.rightJoin)
-        ) {
-          return (
-            <p className="warn">
-              You must select both join columns or neither to proceed.
-            </p>
-          );
-        }
 
         // Ensure the target and join columns differ
         if (
@@ -340,6 +257,7 @@ function PreviewTable({
             </p>
           );
         }
+        console.log(app.columnSelections);
 
         if (
           app.columnSelections.rightJoin &&
@@ -415,6 +333,18 @@ function PreviewTable({
           );
         }
 
+        // Ensure both joins are specified
+        if (
+          (app.columnSelections.leftJoin && !app.columnSelections.rightJoin) ||
+          (!app.columnSelections.leftJoin && app.columnSelections.rightJoin)
+        ) {
+          return (
+            <p className="warn">
+              You must select both join columns or neither to proceed.
+            </p>
+          );
+        }
+
         // Check if we can proceed
         if (
           app.columnSelections.leftColumn &&
@@ -451,6 +381,79 @@ function PreviewTable({
           );
         }
       })()}
+      <table className={app.setColumnSelection != null ? "hoverable" : ""}>
+        <thead>
+          <tr>
+            {table.headers.map((header, i) => (
+              <th
+                key={i}
+                className={app.hoverColumn === i ? "hover" : ""}
+                onMouseEnter={() =>
+                  reducer({
+                    type: "HoverColumn",
+                    index: i,
+                  })
+                }
+                onMouseLeave={() =>
+                  reducer({
+                    type: "HoverColumn",
+                    index: null,
+                  })
+                }
+                onClick={() =>
+                  reducer({
+                    type: "SelectColumnForSelection",
+                    index: i,
+                  })
+                }
+              >
+                {header}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {table.rows.slice(0, 10).map((row, rowIndex) => (
+            <tr key={rowIndex}>
+              {table.headers.map((header, i) => (
+                <td
+                  key={i}
+                  className={app.hoverColumn === i ? "hover" : ""}
+                  onMouseEnter={() =>
+                    reducer({
+                      type: "HoverColumn",
+                      index: i,
+                    })
+                  }
+                  onMouseLeave={() =>
+                    reducer({
+                      type: "HoverColumn",
+                      index: null,
+                    })
+                  }
+                  onClick={() =>
+                    reducer({
+                      type: "SelectColumnForSelection",
+                      index: i,
+                    })
+                  }
+                >
+                  {row[header]}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <ColumnSelectButton type="leftColumn" />
+      <ColumnSelectButton type="rightColumn" />
+      <p className="button-category-label">Joins (optional):</p>
+      <ColumnSelectButton type="leftJoin" />
+      <ColumnSelectButton type="rightJoin" />
+      <p className="button-category-label">Metadata (optional):</p>
+      <ColumnSelectButton type="leftMeta" />
+      <ColumnSelectButton type="rightMeta" />
+
       <div className="button-section extra-top">
         <ResetButton slim={true} app={app} reducer={reducer} />
       </div>
