@@ -34,9 +34,12 @@ export function MatchingTable({
   );
   const [showMeta, setShowMeta] = useState<"show" | "hide">("show");
 
-  if (app.matches.length === 0) return null;
+  const allJoins = Object.keys(app.matches);
+  const [join, setJoin] = useState(allJoins[0] || "");
 
-  const numColumns = app.matches[0].rankedMatches.length + 1;
+  if (allJoins.length === 0) return null;
+
+  const numColumns = app.matches[join][0].rankedMatches.length + 1;
   const columns: GridColumn[] = [
     {
       title: `SOURCE — ${app.columnSelections.left.column} (${app.columnSelections.left.tableName})`,
@@ -71,18 +74,18 @@ export function MatchingTable({
   // }
 
   function getUserMatched(matchCell: Match): boolean {
-    return app.userMatches[`${matchCell.col},${matchCell.row}`];
+    return app.userMatches[join][`${matchCell.col},${matchCell.row}`];
   }
 
   function getAllUserMatches(): Match[] {
-    const entries = Object.entries(app.userMatches);
+    const entries = Object.entries(app.userMatches[join]);
     const results: Match[] = [];
     for (const [key, value] of entries) {
       if (!value) continue;
       const parts = key.split(",");
       const x = parseInt(parts[0]);
       const y = parseInt(parts[1]);
-      results.push(app.matches[y].rankedMatches[x]);
+      results.push(app.matches[join][y].rankedMatches[x]);
     }
     return results;
   }
@@ -94,17 +97,24 @@ export function MatchingTable({
     return userMatchTexts.includes(match.value);
   }
 
-  const matchEntries = Object.entries(app.userMatches);
-  const rowsWithMatches: { [row: number]: boolean } = {};
-  for (const [key, value] of matchEntries) {
-    if (value) {
-      const row = parseInt(key.split(",")[1]);
-      rowsWithMatches[row] = true;
+  const matchEntries: [string, [string, boolean][]][] = Object.entries(
+    app.userMatches
+  ).map(([k, v]) => [k, Object.entries(v)]);
+  const rowsWithMatches: { [join: string]: { [row: number]: boolean } } = {};
+  for (const [join, subEntries] of matchEntries) {
+    for (const [key, value] of subEntries) {
+      if (value) {
+        const row = parseInt(key.split(",")[1]);
+        if (rowsWithMatches[join] == null) {
+          rowsWithMatches[join] = {};
+        }
+        rowsWithMatches[join][row] = true;
+      }
     }
   }
 
-  function rowHasMatch(row: number): boolean {
-    return rowsWithMatches[row];
+  function rowHasMatch(row: number, subJoin = join): boolean {
+    return rowsWithMatches[subJoin]?.[row];
   }
 
   function drawTextWithMatches(
@@ -170,7 +180,7 @@ export function MatchingTable({
   }
 
   const filteredMatchRows = new FilteredMatchRows(
-    app.matches,
+    app.matches[join],
     (cell) =>
       colFilter === "all"
         ? true
@@ -244,12 +254,13 @@ export function MatchingTable({
                 gridSelection.current.range,
                 ...gridSelection.current.rangeStack,
               ],
+              join,
             });
             if (
               gridSelection.current.range.width === 1 &&
               gridSelection.current.range.height === 1 &&
               gridSelection.current.rangeStack.length === 0 &&
-              gridSelection.current.range.y < app.matches.length - 1
+              gridSelection.current.range.y < filteredMatchRows.numRows - 1
             ) {
               // Advance to the next row
               setGridSelection({
@@ -290,6 +301,7 @@ export function MatchingTable({
                 ...gridSelection.current.rangeStack,
               ],
               data: filteredMatchRows,
+              join,
               forceState: false,
             });
           }
@@ -361,7 +373,7 @@ export function MatchingTable({
                 text,
                 col === 1 || isUserMatch
                   ? ""
-                  : app.matches[matchCell.row].value,
+                  : app.matches[join][matchCell.row].value,
                 rect.x + 5,
                 rect.y + rect.height / 2 + 1,
                 sizeOffset
@@ -371,7 +383,9 @@ export function MatchingTable({
               ctx,
               "fill",
               text,
-              col === 1 || isUserMatch ? "" : app.matches[matchCell.row].value,
+              col === 1 || isUserMatch
+                ? ""
+                : app.matches[join][matchCell.row].value,
               rect.x + 5,
               rect.y + rect.height / 2 + 1,
               sizeOffset
@@ -390,7 +404,18 @@ export function MatchingTable({
         }}
         getCellContent={(cell) => {
           const [column, row] = cell;
-          const filteredMatches = filteredMatchRows.getRow(row);
+          let filteredMatches;
+          try {
+            filteredMatches = filteredMatchRows.getRow(row);
+          } catch (e) {
+            // This happens when the render is called while data changes
+            return {
+              kind: GridCellKind.Text,
+              data: "",
+              allowOverlay: false,
+              displayData: "",
+            };
+          }
 
           if (column === 0) {
             return {
@@ -453,6 +478,18 @@ export function MatchingTable({
 
         <ResetButton slim={true} app={app} reducer={reducer} />
 
+        <select onInput={(e) => setJoin((e.target as HTMLSelectElement).value)}>
+          {allJoins.map((join) => (
+            <option key={join} value={join}>
+              {join} (
+              {app.matches[join]
+                .filter((matchRow: MatchRow) => rowHasMatch(matchRow.row, join))
+                .length.toLocaleString()}{" "}
+              / {app.matches[join].length.toLocaleString()})
+            </option>
+          ))}
+        </select>
+
         <select
           onInput={(e) =>
             setRowFilter(
@@ -464,18 +501,18 @@ export function MatchingTable({
           }
         >
           <option value="all">
-            Show all rows ({app.matches.length.toLocaleString()})
+            Show all rows ({app.matches[join].length.toLocaleString()})
           </option>
           <option value="incomplete">
             Show incomplete rows (
-            {app.matches
+            {app.matches[join]
               .filter((matchRow: MatchRow) => !rowHasMatch(matchRow.row))
               .length.toLocaleString()}
             )
           </option>
           <option value="complete">
             Show complete rows (
-            {app.matches
+            {app.matches[join]
               .filter((matchRow: MatchRow) => rowHasMatch(matchRow.row))
               .length.toLocaleString()}
             )

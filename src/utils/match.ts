@@ -67,6 +67,23 @@ export function automatchResults(results: MatchRow[]): {
   return output;
 }
 
+export function automatchFullResults(fullResults: [string, MatchRow[]][]): {
+  [join: string]: {
+    [index: string]: boolean;
+  };
+} {
+  return Object.fromEntries(
+    fullResults.map<
+      [
+        string,
+        {
+          [index: string]: boolean;
+        }
+      ]
+    >((results) => [results[0], automatchResults(results[1])])
+  );
+}
+
 export function extractParts(s: string): string[] {
   // Split on non alpha non numeric
   return s.split(/[^a-zA-Z0-9]+/).filter((x) => x !== "");

@@ -1,7 +1,7 @@
 import React from "react";
 import { fileToTable, Table } from "./utils/extractTable";
 import { createUndoRedo } from "react-undo-redo";
-import { automatchResults, FilteredMatchRows } from "./utils/match";
+import { automatchFullResults, FilteredMatchRows } from "./utils/match";
 
 export type State =
   | WelcomeState
@@ -95,9 +95,13 @@ export interface ProcessingState {
 export interface MatchingState {
   type: "MatchingState";
   tables: Table[];
-  matches: MatchRow[];
+  matches: {
+    [join: string]: MatchRow[];
+  };
   userMatches: {
-    [index: string]: boolean;
+    [join: string]: {
+      [index: string]: boolean;
+    };
   };
   columnSelections: ColumnSelections;
   canUndo: boolean;
@@ -163,11 +167,12 @@ export interface UpdateProgress {
 
 export interface FinishProcessing {
   type: "FinishProcessing";
-  results: MatchRow[];
+  results: [string, MatchRow[]][];
 }
 
 export interface ToggleUserMatches {
   type: "ToggleUserMatches";
+  join: string;
   data: FilteredMatchRows;
   selections: Selection[];
   forceState?: boolean;
@@ -346,9 +351,9 @@ export function appReducer(state: State, action: Action): State {
       if (state.type === "ProcessingState") {
         return {
           type: "MatchingState",
-          matches: action.results,
+          matches: Object.fromEntries(action.results),
           tables: state.tables,
-          userMatches: automatchResults(action.results),
+          userMatches: automatchFullResults(action.results),
           columnSelections: state.columnSelections,
           canUndo: false,
         };
@@ -379,7 +384,11 @@ export function appReducer(state: State, action: Action): State {
               x++
             ) {
               const matchCell = action.data.getRow(y).rankedMatches[x];
-              if (state.userMatches[`${matchCell.col},${matchCell.row}`]) {
+              if (
+                state.userMatches[action.join][
+                  `${matchCell.col},${matchCell.row}`
+                ]
+              ) {
                 allFalse = false;
               } else {
                 allTrue = false;
@@ -396,7 +405,10 @@ export function appReducer(state: State, action: Action): State {
             : allTrue
             ? false
             : true;
-        const newMatches = { ...state.userMatches };
+        const newMatches = {
+          ...state.userMatches,
+          [action.join]: { ...(state.userMatches[action.join] || {}) },
+        };
         for (const selection of newSelections) {
           for (let y = selection.y; y < selection.y + selection.height; y++) {
             for (
@@ -405,7 +417,8 @@ export function appReducer(state: State, action: Action): State {
               x++
             ) {
               const matchCell = action.data.getRow(y).rankedMatches[x];
-              newMatches[`${matchCell.col},${matchCell.row}`] = selectState;
+              newMatches[action.join][`${matchCell.col},${matchCell.row}`] =
+                selectState;
             }
           }
         }
