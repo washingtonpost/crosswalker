@@ -2,22 +2,27 @@
 import logo from "./assets/logo.svg";
 import uploadIcon from "./assets/uploadIcon.svg";
 import fileIcon from "./assets/fileIcon.svg";
-import closeIcon from "./assets/closeIcon.svg";
 import continueIcon from "./assets/continueIcon.svg";
 import "./App.css";
 import "@glideapps/glide-data-grid/dist/index.css";
 
 import { Button } from "./components/Button";
 import {
+  Action,
   AppReducer,
   ColumnSelectionType,
+  defaultState,
+  State,
   TableIndex,
   TablesAddedState,
+  UndoRedo,
   useAppReducer,
 } from "./state";
 import { Table } from "./utils/extractTable";
 import { Matcher } from "./components/Matcher";
 import { MatchingTable } from "./components/MatchingTable";
+import { Dispatch } from "react";
+import { ResetButton } from "./components/ResetButton";
 
 function Header() {
   return (
@@ -122,23 +127,27 @@ function PreviewTable({
     if (column == null) return null;
     return (
       <span className="column-selection">
-        {app.tables[column.table].name}: {column.column}
+        {column.tableName}: {column.column}
       </span>
     );
   };
 
   const ColumnSelectButton = ({ type }: { type: ColumnSelectionType }) => {
     const preTexts: { [K in ColumnSelectionType]: string } = {
-      leftColumn: "Click to select left column",
-      leftJoin: "Click to select left join column (optional)",
-      rightColumn: "Click to select right column",
-      rightJoin: "Click to select right join column (optional)",
+      leftColumn: "Select source column",
+      rightColumn: "Select match column",
+      leftJoin: "Select source join",
+      rightJoin: "Select match join",
+      leftMeta: "Select source meta",
+      rightMeta: "Select match meta",
     };
     const postTexts: { [K in ColumnSelectionType]: string } = {
-      leftColumn: "Left column",
-      leftJoin: "Left join column",
-      rightColumn: "Right column",
-      rightJoin: "Right join column",
+      leftColumn: "Source column",
+      rightColumn: "Match column",
+      leftJoin: "Source join column",
+      rightJoin: "Match join column",
+      leftMeta: "Source meta column",
+      rightMeta: "Match meta column",
     };
 
     return (
@@ -154,7 +163,23 @@ function PreviewTable({
                 })
               }
             >
-              <img src={closeIcon} alt="Remove" />
+              {/* Close icon */}
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 14 14"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M13.1138 3.4595L10.1638 0.509537L6.64038 4.033L3.11694 0.509537L0.166992 3.4595L3.69043 6.98298L0.166992 10.5065L3.11694 13.4564L6.64038 9.93295L10.1638 13.4564L13.1138 10.5065L9.59033 6.98297L13.1138 3.4595Z"
+                  fill="white"
+                />
+                <path
+                  d="M13.1138 3.4595L10.1638 0.509537L6.64038 4.033L3.11694 0.509537L0.166992 3.4595L3.69043 6.98298L0.166992 10.5065L3.11694 13.4564L6.64038 9.93295L10.1638 13.4564L13.1138 10.5065L9.59033 6.98297L13.1138 3.4595Z"
+                  fill="white"
+                />
+              </svg>
             </span>
           )}
 
@@ -246,9 +271,19 @@ function PreviewTable({
       </table>
       <ColumnSelectButton type="leftColumn" />
       <ColumnSelectButton type="rightColumn" />
+      <p className="button-category-label">Joins (optional):</p>
       <ColumnSelectButton type="leftJoin" />
       <ColumnSelectButton type="rightJoin" />
+      <p className="button-category-label">Metadata (optional):</p>
+      <ColumnSelectButton type="leftMeta" />
+      <ColumnSelectButton type="rightMeta" />
       {(() => {
+        const colsDiffer = (col1: TableIndex, col2: TableIndex): boolean => {
+          return (
+            col1.tableIndex === col2.tableIndex && col1.column === col2.column
+          );
+        };
+
         if (
           (app.columnSelections.leftJoin && !app.columnSelections.rightJoin) ||
           (!app.columnSelections.leftJoin && app.columnSelections.rightJoin)
@@ -260,10 +295,143 @@ function PreviewTable({
           );
         }
 
+        // Ensure the target and join columns differ
+        if (
+          app.columnSelections.leftJoin &&
+          app.columnSelections.leftColumn &&
+          colsDiffer(
+            app.columnSelections.leftJoin,
+            app.columnSelections.leftColumn
+          )
+        ) {
+          return (
+            <p className="warn">
+              The source column and source join column must differ to proceed.
+            </p>
+          );
+        }
+
+        if (
+          app.columnSelections.rightJoin &&
+          app.columnSelections.rightColumn &&
+          colsDiffer(
+            app.columnSelections.rightJoin,
+            app.columnSelections.rightColumn
+          )
+        ) {
+          return (
+            <p className="warn">
+              The match column and match join column must differ to proceed.
+            </p>
+          );
+        }
+
+        // Ensure the target and join columns are in the same table
+        if (
+          app.columnSelections.leftJoin &&
+          app.columnSelections.leftColumn &&
+          app.columnSelections.leftJoin.tableIndex !==
+            app.columnSelections.leftColumn.tableIndex
+        ) {
+          return (
+            <p className="warn">
+              The source column and source join column must be in the same table
+              to proceed.
+            </p>
+          );
+        }
+
+        if (
+          app.columnSelections.rightJoin &&
+          app.columnSelections.rightColumn &&
+          app.columnSelections.rightJoin.tableIndex !==
+            app.columnSelections.rightColumn.tableIndex
+        ) {
+          return (
+            <p className="warn">
+              The match column and match join column must be in the same table
+              to proceed.
+            </p>
+          );
+        }
+
+        // Ensure the target and meta columns differ
+        if (
+          app.columnSelections.leftMeta &&
+          app.columnSelections.leftColumn &&
+          colsDiffer(
+            app.columnSelections.leftMeta,
+            app.columnSelections.leftColumn
+          )
+        ) {
+          return (
+            <p className="warn">
+              The source column and source meta column must differ to proceed.
+            </p>
+          );
+        }
+
+        if (
+          app.columnSelections.rightMeta &&
+          app.columnSelections.rightColumn &&
+          colsDiffer(
+            app.columnSelections.rightMeta,
+            app.columnSelections.rightColumn
+          )
+        ) {
+          return (
+            <p className="warn">
+              The match column and match meta column must differ to proceed.
+            </p>
+          );
+        }
+
+        // Ensure the target and meta columns are in the same table
+        if (
+          app.columnSelections.leftMeta &&
+          app.columnSelections.leftColumn &&
+          app.columnSelections.leftMeta.tableIndex !==
+            app.columnSelections.leftColumn.tableIndex
+        ) {
+          return (
+            <p className="warn">
+              The source column and source meta column must be in the same table
+              to proceed.
+            </p>
+          );
+        }
+
+        if (
+          app.columnSelections.rightMeta &&
+          app.columnSelections.rightColumn &&
+          app.columnSelections.rightMeta.tableIndex !==
+            app.columnSelections.rightColumn.tableIndex
+        ) {
+          return (
+            <p className="warn">
+              The match column and match meta column must be in the same table
+              to proceed.
+            </p>
+          );
+        }
+
+        // Check if we can proceed
         if (
           app.columnSelections.leftColumn &&
           app.columnSelections.rightColumn
         ) {
+          if (
+            app.columnSelections.leftColumn.tableIndex ===
+              app.columnSelections.rightColumn.tableIndex &&
+            app.columnSelections.leftColumn.column ===
+              app.columnSelections.rightColumn.column
+          ) {
+            return (
+              <p className="warn">
+                The source and match columns must be different to proceed.
+              </p>
+            );
+          }
           return (
             <div className="button-section extra-top">
               <Button
@@ -283,12 +451,21 @@ function PreviewTable({
           );
         }
       })()}
+      <div className="button-section extra-top">
+        <ResetButton slim={true} app={app} reducer={reducer} />
+      </div>
     </>
   );
 }
 
-function App() {
-  const [app, reducer] = useAppReducer();
+function Body({
+  usePresent,
+  useUndoRedo,
+}: {
+  usePresent: () => [State, Dispatch<Action>];
+  useUndoRedo: () => [undo: UndoRedo, redo: UndoRedo];
+}) {
+  const [app, reducer] = usePresent();
 
   return (
     <div className="App">
@@ -314,9 +491,19 @@ function App() {
       )}
 
       {app.type === "MatchingState" && (
-        <MatchingTable app={app} reducer={reducer} />
+        <MatchingTable app={app} reducer={reducer} useUndoRedo={useUndoRedo} />
       )}
     </div>
+  );
+}
+
+function App() {
+  const { UndoRedoProvider, usePresent, useUndoRedo } = useAppReducer();
+
+  return (
+    <UndoRedoProvider initialState={defaultState}>
+      <Body usePresent={usePresent} useUndoRedo={useUndoRedo} />
+    </UndoRedoProvider>
   );
 }
 

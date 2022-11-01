@@ -4,7 +4,8 @@ export interface ButtonProps {
     url: string;
     alt: string;
   };
-  type?: "primary" | "secondary" | "inverted";
+  disabled?: boolean;
+  type?: "primary" | "secondary" | "inverted" | "danger";
   children?: React.ReactNode;
   onClick?: () => void;
 }
@@ -13,12 +14,16 @@ export function Button({
   slim = false,
   icon,
   type = "primary",
+  disabled = false,
   children,
   onClick = () => {},
 }: ButtonProps) {
   return (
     <button
-      className={`${type}-button ${slim ? "slim" : ""}`}
+      disabled={disabled}
+      className={`${type}-button ${slim ? "slim" : ""} ${
+        disabled ? "disabled" : ""
+      }`}
       onClick={onClick}
     >
       {icon && <img src={icon.url} alt={icon.alt} />}

@@ -1,5 +1,7 @@
-import React, { useReducer } from "react";
+import React from "react";
 import { fileToTable, Table } from "./utils/extractTable";
+import { createUndoRedo } from "react-undo-redo";
+import { automatchResults } from "./utils/match";
 
 export type State =
   | WelcomeState
@@ -19,18 +21,46 @@ export interface Match {
   index: number;
 }
 
+export interface Selection {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export type UndoRedo = {
+  (): void;
+  isPossible: boolean;
+};
+
+export interface ColumnSelections {
+  left: TableIndex;
+  right: TableIndex;
+  join?: {
+    left: TableIndex;
+    right: TableIndex;
+  };
+  meta: {
+    left: TableIndex | null;
+    right: TableIndex | null;
+  };
+}
+
 export interface WelcomeState {
   type: "WelcomeState";
 }
 
 export type ColumnSelectionType =
   | "leftColumn"
-  | "leftJoin"
   | "rightColumn"
-  | "rightJoin";
+  | "leftJoin"
+  | "rightJoin"
+  | "leftMeta"
+  | "rightMeta";
 
 export interface TableIndex {
-  table: number;
+  tableIndex: number;
+  tableName: string;
   column: string;
 }
 
@@ -42,23 +72,18 @@ export interface TablesAddedState {
   setColumnSelection: ColumnSelectionType | null;
   columnSelections: {
     leftColumn: TableIndex | null;
-    leftJoin: TableIndex | null;
     rightColumn: TableIndex | null;
+    leftJoin: TableIndex | null;
     rightJoin: TableIndex | null;
+    leftMeta: TableIndex | null;
+    rightMeta: TableIndex | null;
   };
 }
 
 export interface ProcessingState {
   type: "ProcessingState";
   tables: Table[];
-  columnSelections: {
-    left: TableIndex;
-    right: TableIndex;
-    join?: {
-      left: TableIndex;
-      right: TableIndex;
-    };
-  };
+  columnSelections: ColumnSelections;
   progress: number;
 }
 
@@ -66,6 +91,11 @@ export interface MatchingState {
   type: "MatchingState";
   tables: Table[];
   matches: MatchRow[];
+  userMatches: {
+    [index: string]: boolean;
+  };
+  columnSelections: ColumnSelections;
+  canUndo: boolean;
 }
 
 export type Action =
@@ -78,7 +108,9 @@ export type Action =
   | ClearColumnSelection
   | StartProcessing
   | UpdateProgress
-  | FinishProcessing;
+  | FinishProcessing
+  | ToggleUserMatches
+  | Reset;
 
 export interface AddTablesFromFiles {
   type: "AddTablesFromFiles";
@@ -129,6 +161,16 @@ export interface FinishProcessing {
   results: MatchRow[];
 }
 
+export interface ToggleUserMatches {
+  type: "ToggleUserMatches";
+  selections: Selection[];
+  forceState?: boolean;
+}
+
+export interface Reset {
+  type: "Reset";
+}
+
 export const defaultState: State = {
   type: "WelcomeState",
 };
@@ -164,9 +206,11 @@ export function appReducer(state: State, action: Action): State {
         setColumnSelection: null,
         columnSelections: {
           leftColumn: null,
-          leftJoin: null,
           rightColumn: null,
+          leftJoin: null,
           rightJoin: null,
+          leftMeta: null,
+          rightMeta: null,
         },
       });
     case "RemoveTable":
@@ -219,7 +263,8 @@ export function appReducer(state: State, action: Action): State {
           columnSelections: {
             ...state.columnSelections,
             [state.setColumnSelection]: {
-              table: state.selectedTable,
+              tableIndex: state.selectedTable,
+              tableName: state.tables[state.selectedTable].name,
               column: state.tables[state.selectedTable].headers[action.index],
             },
           },
@@ -253,6 +298,11 @@ export function appReducer(state: State, action: Action): State {
         let join: { left: TableIndex; right: TableIndex } | undefined =
           undefined;
 
+        const meta: { left: TableIndex | null; right: TableIndex | null } = {
+          left: state.columnSelections.leftMeta,
+          right: state.columnSelections.rightMeta,
+        };
+
         if (
           state.columnSelections.leftJoin &&
           state.columnSelections.rightJoin
@@ -270,6 +320,7 @@ export function appReducer(state: State, action: Action): State {
             left: state.columnSelections.leftColumn,
             right: state.columnSelections.rightColumn,
             join,
+            meta,
           },
           progress: 0,
         };
@@ -291,15 +342,76 @@ export function appReducer(state: State, action: Action): State {
           type: "MatchingState",
           matches: action.results,
           tables: state.tables,
+          userMatches: automatchResults(action.results),
+          columnSelections: state.columnSelections,
+          canUndo: false,
         };
       } else {
         return state;
       }
+    case "ToggleUserMatches":
+      if (state.type === "MatchingState") {
+        // Fix selection
+        const newSelections: Selection[] = [];
+        for (const selection of action.selections) {
+          let newSelection = { ...selection };
+          if (newSelection.x === 0) {
+            newSelection.x++;
+            newSelection.width--;
+          }
+          newSelections.push(newSelection);
+        }
+
+        // Check selection status
+        let allTrue = true;
+        let allFalse = true;
+        for (const selection of newSelections) {
+          for (let y = selection.y; y < selection.y + selection.height; y++) {
+            for (
+              let x = selection.x - 1;
+              x < selection.x + selection.width - 1;
+              x++
+            ) {
+              if (state.userMatches[`${x},${y}`]) {
+                allFalse = false;
+              } else {
+                allTrue = false;
+              }
+            }
+          }
+        }
+        // Apply selection
+        const selectState =
+          action.forceState != null
+            ? action.forceState
+            : allFalse
+            ? true
+            : allTrue
+            ? false
+            : true;
+        const newMatches = { ...state.userMatches };
+        for (const selection of newSelections) {
+          for (let y = selection.y; y < selection.y + selection.height; y++) {
+            for (
+              let x = selection.x - 1;
+              x < selection.x + selection.width - 1;
+              x++
+            ) {
+              newMatches[`${x},${y}`] = selectState;
+            }
+          }
+        }
+        return { ...state, userMatches: newMatches, canUndo: true };
+      } else {
+        return state;
+      }
+    case "Reset":
+      return defaultState;
   }
 }
 
-export function useAppReducer(initialState = defaultState) {
-  return useReducer(appReducer, initialState);
+export function useAppReducer() {
+  return createUndoRedo(appReducer);
 }
 
 export interface AppReducer {

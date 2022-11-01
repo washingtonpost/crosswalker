@@ -30,10 +30,9 @@ export function Matcher({
   app: ProcessingState;
 }) {
   useEffect(() => {
-    console.log([app.columnSelections, app.tables, reducer]);
     const timeouts: ReturnType<typeof setTimeout>[] = [];
     const [leftValues, rightValues] = (["left", "right"] as const).map((side) =>
-      app.tables[app.columnSelections[side].table].rows.map(
+      app.tables[app.columnSelections[side].tableIndex].rows.map(
         (row) => row[app.columnSelections[side].column]
       )
     );
@@ -62,7 +61,7 @@ export function Matcher({
           if (i === leftValues.length - 1) {
             reducer({
               type: "FinishProcessing",
-              results,
+              results: results,
             });
           } else {
             reducer({

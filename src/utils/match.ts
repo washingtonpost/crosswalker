@@ -1,8 +1,37 @@
 import { distance as fastestLevenshtein } from "fastest-levenshtein";
+import { MatchRow } from "../state";
 
 const NUMBER_RE = /^[0-9]+$/;
 
-function extractParts(s: string): string[] {
+export function partsMatch(s1: string, s2: string): boolean {
+  const parts1 = extractParts(s1);
+  const parts2 = extractParts(s2);
+  if (parts1.length !== parts2.length) return false;
+  for (let i = 0; i < parts1.length; i++) {
+    if (parts1[i] !== parts2[i]) return false;
+  }
+  return true;
+}
+
+export function automatchResults(results: MatchRow[]): {
+  [index: string]: boolean;
+} {
+  const output: {
+    [index: string]: boolean;
+  } = {};
+  for (let i = 0; i < results.length; i++) {
+    const result = results[i];
+    if (
+      result.rankedMatches.length > 0 &&
+      partsMatch(result.value, result.rankedMatches[0].value)
+    ) {
+      output[`0,${i}`] = true;
+    }
+  }
+  return output;
+}
+
+export function extractParts(s: string): string[] {
   // Split on non alpha non numeric
   return s.split(/[^a-zA-Z0-9]+/).filter((x) => x !== "");
 }
