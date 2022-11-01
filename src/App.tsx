@@ -43,7 +43,7 @@ function Instructions({ app }: AppReducer) {
       Select columns corresponding to the data by clicking in the tables below.
     </p>
   ) : app.type === "ProcessingState" ? (
-    <p>Auto-matching precincts...</p>
+    <p>Auto-crosswalking...</p>
   ) : null;
 }
 
