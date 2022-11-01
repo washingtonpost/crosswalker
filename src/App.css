@@ -60,6 +60,10 @@ label * {
   pointer-events: none;
 }
 
+.button-tweak {
+  margin-top: -6px;
+}
+
 .hidden {
   display: none;
 }

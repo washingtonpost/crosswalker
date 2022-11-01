@@ -232,24 +232,55 @@ export function MatchingTable({
             Redo
           </Button>
 
-          {/* <Button
+          <Button
             slim={true}
-            // onClick={() => redo()}
+            onClick={() => {
+              download("crosswalk_savepoint.json", app);
+            }}
           >
             Save
           </Button>
-          <Button
-            slim={true}
-            // onClick={() => redo()}
-          >
-            Load
-          </Button> */}
+          <input
+            type="file"
+            id="file-load-button-upload"
+            className="hidden"
+            onInput={(e) =>
+              (async () => {
+                let loaded = false;
+                const target = e.target as HTMLInputElement;
+                const files = Array.from(target.files || []);
+
+                if (files.length === 1) {
+                  const rawContents = await files[0].text();
+                  const json = JSON.parse(rawContents) as MatchingState;
+
+                  if (json.type === "MatchingState") {
+                    reducer({
+                      type: "LoadState",
+                      state: json,
+                    });
+                    loaded = true;
+                  }
+                }
+
+                // Clear the file input
+                target.value = "";
+
+                if (!loaded) {
+                  alert("Improper file specified");
+                }
+              })()
+            }
+          />
+          <label htmlFor="file-load-button-upload" className="button-tweak">
+            <Button slim={true}>Load</Button>
+          </label>
 
           <Button
             slim={true}
             icon={{
               url: downloadIcon,
-              alt: "Download",
+              alt: "Export",
             }}
             onClick={() => {
               const getRow = (
@@ -295,7 +326,7 @@ export function MatchingTable({
               download("crosswalk.json", results);
             }}
           >
-            Download matches ({allUserMatches.length.toLocaleString()})
+            Export matches ({allUserMatches.length.toLocaleString()})
           </Button>
         </div>
       </Header>

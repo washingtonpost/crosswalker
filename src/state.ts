@@ -124,7 +124,8 @@ export type Action =
   | UpdateProgress
   | FinishProcessing
   | ToggleUserMatches
-  | Reset;
+  | Reset
+  | LoadState;
 
 export interface AddTablesFromFiles {
   type: "AddTablesFromFiles";
@@ -185,6 +186,11 @@ export interface ToggleUserMatches {
 
 export interface Reset {
   type: "Reset";
+}
+
+export interface LoadState {
+  type: "LoadState";
+  state: MatchingState;
 }
 
 export const defaultState: State = {
@@ -433,6 +439,8 @@ export function appReducer(state: State, action: Action): State {
       }
     case "Reset":
       return defaultState;
+    case "LoadState":
+      return action.state;
   }
 }
 
