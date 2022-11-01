@@ -2,6 +2,11 @@ import React from "react";
 import { fileToTable, Table } from "./utils/extractTable";
 import { createUndoRedo } from "react-undo-redo";
 import { automatchFullResults, FilteredMatchRows } from "./utils/match";
+import localforage from "localforage";
+
+// UPDATE THIS WHENEVER THIS FILE IS CHANGED
+// OTHERWISE YOU MAY DESERIALIZE TO AN UNSTABLE STATE
+export const VERSION = 1;
 
 export type State =
   | WelcomeState
@@ -431,8 +436,29 @@ export function appReducer(state: State, action: Action): State {
   }
 }
 
+export const LOCAL_STORAGE_KEY = "crosswalker_storage";
+
+export function localStorageReducer<T, TArgs extends Array<any>>(
+  reducer: (...args: TArgs) => T,
+  saveCondition: (state: T) => boolean = () => true,
+  localStorageKey = LOCAL_STORAGE_KEY
+): (...args: TArgs) => T {
+  return (...args: TArgs) => {
+    const newState = reducer(...args);
+
+    // Update the item in local forage
+    if (saveCondition(newState)) {
+      localforage.setItem(localStorageKey, [VERSION, newState]);
+    }
+
+    return newState;
+  };
+}
+
 export function useAppReducer() {
-  return createUndoRedo(appReducer);
+  return createUndoRedo(
+    localStorageReducer(appReducer, (state) => state.type === "MatchingState")
+  );
 }
 
 export interface AppReducer {

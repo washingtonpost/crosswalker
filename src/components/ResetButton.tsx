@@ -17,7 +17,7 @@ export function ResetButton({
         })
       }
     >
-      Reset
+      New
     </Button>
   );
 }

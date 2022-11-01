@@ -1,5 +1,4 @@
 // import React from 'react';
-import logo from "./assets/logo.svg";
 import uploadIcon from "./assets/uploadIcon.svg";
 import fileIcon from "./assets/fileIcon.svg";
 import continueIcon from "./assets/continueIcon.svg";
@@ -12,28 +11,21 @@ import {
   AppReducer,
   ColumnSelectionType,
   defaultState,
+  LOCAL_STORAGE_KEY,
   State,
   TableIndex,
   TablesAddedState,
   UndoRedo,
   useAppReducer,
+  VERSION,
 } from "./state";
 import { Table } from "./utils/extractTable";
 import { Matcher } from "./components/Matcher";
 import { MatchingTable } from "./components/MatchingTable";
-import { Dispatch } from "react";
+import { Dispatch, useEffect, useState } from "react";
 import { ResetButton } from "./components/ResetButton";
-
-function Header() {
-  return (
-    <header className="App-header">
-      <h1>
-        <img src={logo} className="App-logo" alt="logo" />
-        <span>Crosswalker</span>
-      </h1>
-    </header>
-  );
-}
+import localforage from "localforage";
+import { Header } from "./components/Header";
 
 function Instructions({ app }: AppReducer) {
   return app.type === "WelcomeState" ? (
@@ -472,25 +464,29 @@ function Body({
 
   return (
     <div className="App">
-      <Header />
+      {app.type !== "MatchingState" && (
+        <>
+          <Header />
 
-      <Instructions app={app} reducer={reducer} />
+          <Instructions app={app} reducer={reducer} />
 
-      <FileUploader app={app} reducer={reducer} />
+          <FileUploader app={app} reducer={reducer} />
 
-      {app.type === "TablesAddedState" &&
-      app.tables.length > 0 &&
-      app.selectedTable < app.tables.length ? (
-        <PreviewTable
-          table={app.tables[app.selectedTable]}
-          app={app}
-          hoverColumn={app.hoverColumn}
-          reducer={reducer}
-        />
-      ) : null}
+          {app.type === "TablesAddedState" &&
+          app.tables.length > 0 &&
+          app.selectedTable < app.tables.length ? (
+            <PreviewTable
+              table={app.tables[app.selectedTable]}
+              app={app}
+              hoverColumn={app.hoverColumn}
+              reducer={reducer}
+            />
+          ) : null}
 
-      {app.type === "ProcessingState" && (
-        <Matcher app={app} reducer={reducer} />
+          {app.type === "ProcessingState" && (
+            <Matcher app={app} reducer={reducer} />
+          )}
+        </>
       )}
 
       {app.type === "MatchingState" && (
@@ -503,11 +499,28 @@ function Body({
 function App() {
   const { UndoRedoProvider, usePresent, useUndoRedo } = useAppReducer();
 
-  return (
-    <UndoRedoProvider initialState={defaultState}>
+  const [initialState, setInitialState] = useState<State | null>(null);
+
+  useEffect(() => {
+    localforage.getItem<[number, State]>(LOCAL_STORAGE_KEY).then((value) => {
+      if (value == null) {
+        setInitialState(defaultState);
+      } else if (value[0] !== VERSION) {
+        setInitialState(defaultState);
+      } else if (value[1].type !== "MatchingState") {
+        setInitialState(defaultState);
+      } else {
+        // Deserialize state!
+        setInitialState(value[1]);
+      }
+    });
+  }, []);
+
+  return initialState != null ? (
+    <UndoRedoProvider initialState={initialState}>
       <Body usePresent={usePresent} useUndoRedo={useUndoRedo} />
     </UndoRedoProvider>
-  );
+  ) : null;
 }
 
 export default App;

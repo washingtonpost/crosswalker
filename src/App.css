@@ -160,3 +160,7 @@ select {
   border-radius: 2px;
   padding: 0 10px;
 }
+
+.upper-section {
+  float: right;
+}

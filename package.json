@@ -13,6 +13,7 @@
     "@types/react-dom": "^18.0.8",
     "d3-dsv": "^3.0.1",
     "fastest-levenshtein": "^1.0.16",
+    "localforage": "^1.10.0",
     "lodash": "^4.17.21",
     "marked": "^4.1.1",
     "react": "^18.2.0",

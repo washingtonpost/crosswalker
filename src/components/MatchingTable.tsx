@@ -10,6 +10,9 @@ import tinycolor from "tinycolor2";
 import { Button } from "./Button";
 import { extractParts, FilteredMatchRows } from "../utils/match";
 import { ResetButton } from "./ResetButton";
+import { Header } from "./Header";
+import downloadIcon from "../assets/downloadIcon.svg";
+import { download } from "../utils/download";
 
 const COL_WIDTH = 200;
 
@@ -77,21 +80,33 @@ export function MatchingTable({
     return app.userMatches[join][`${matchCell.col},${matchCell.row}`];
   }
 
-  function getAllUserMatches(): Match[] {
-    const entries = Object.entries(app.userMatches[join]);
+  function getUserMatches(joinKey = join): Match[] {
+    const entries = Object.entries(app.userMatches[joinKey]);
     const results: Match[] = [];
     for (const [key, value] of entries) {
       if (!value) continue;
       const parts = key.split(",");
       const x = parseInt(parts[0]);
       const y = parseInt(parts[1]);
-      results.push(app.matches[join][y].rankedMatches[x]);
+      results.push(app.matches[joinKey][y].rankedMatches[x]);
     }
     return results;
   }
 
-  const userMatches = getAllUserMatches();
+  function getAllUserMatches(): [string, MatchRow, Match][] {
+    const results: [string, MatchRow, Match][] = [];
+    for (const join of allJoins) {
+      for (const match of getUserMatches(join)) {
+        results.push([join, app.matches[join][match.row], match]);
+      }
+    }
+    return results;
+  }
+
+  const userMatches = getUserMatches();
   const userMatchTexts = userMatches.map((x) => x.value);
+
+  const allUserMatches = getAllUserMatches();
 
   function isMatchedElsewhere(match: Match): boolean {
     return userMatchTexts.includes(match.value);
@@ -197,6 +212,93 @@ export function MatchingTable({
 
   return (
     <>
+      <Header>
+        <div className="upper-section">
+          <ResetButton slim={true} app={app} reducer={reducer} />
+
+          <Button
+            slim={true}
+            disabled={!undo.isPossible || !app.canUndo}
+            onClick={() => undo()}
+          >
+            Undo
+          </Button>
+
+          <Button
+            slim={true}
+            disabled={!redo.isPossible}
+            onClick={() => redo()}
+          >
+            Redo
+          </Button>
+
+          {/* <Button
+            slim={true}
+            // onClick={() => redo()}
+          >
+            Save
+          </Button>
+          <Button
+            slim={true}
+            // onClick={() => redo()}
+          >
+            Load
+          </Button> */}
+
+          <Button
+            slim={true}
+            icon={{
+              url: downloadIcon,
+              alt: "Download",
+            }}
+            onClick={() => {
+              const getRow = (
+                join: string,
+                match: Match | MatchRow
+              ): [string, string] | [string, string, string] => {
+                if (match.meta) {
+                  return [join, match.value, match.meta];
+                }
+                return [join, match.value];
+              };
+
+              // Aggregate matches
+              const p1s: {
+                [key: string]: ([string, string] | [string, string, string])[];
+              } = {};
+              for (const [join, matchRow, match] of allUserMatches) {
+                const p1 = getRow(join, matchRow);
+                const p1Key = JSON.stringify(p1);
+                const p2 = getRow(join, match);
+                if (p1s[p1Key] == null) {
+                  p1s[p1Key] = [];
+                }
+                p1s[p1Key].push(p2);
+              }
+
+              // Assemble matches
+              const results: {
+                precincts1: ([string, string] | [string, string, string])[];
+                precincts2: ([string, string] | [string, string, string])[];
+              }[] = [];
+              for (const [p1Key, p2s] of Object.entries(p1s)) {
+                const p1 = JSON.parse(p1Key) as
+                  | [string, string]
+                  | [string, string, string];
+                results.push({
+                  precincts1: [p1],
+                  precincts2: p2s,
+                });
+              }
+
+              // Download results
+              download("crosswalk.json", results);
+            }}
+          >
+            Download matches ({allUserMatches.length.toLocaleString()})
+          </Button>
+        </div>
+      </Header>
       <DataEditor
         width={"calc(100vw - 64px)"}
         height={"calc(100vh - 190px)"}
@@ -464,20 +566,6 @@ export function MatchingTable({
         rows={filteredMatchRows.numRows}
       />
       <div className="button-section">
-        <Button
-          slim={true}
-          disabled={!undo.isPossible || !app.canUndo}
-          onClick={() => undo()}
-        >
-          Undo
-        </Button>
-
-        <Button slim={true} disabled={!redo.isPossible} onClick={() => redo()}>
-          Redo
-        </Button>
-
-        <ResetButton slim={true} app={app} reducer={reducer} />
-
         <select onInput={(e) => setJoin((e.target as HTMLSelectElement).value)}>
           {allJoins.map((join) => (
             <option key={join} value={join}>
