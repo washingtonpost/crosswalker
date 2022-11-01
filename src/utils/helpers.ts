@@ -24,3 +24,11 @@ export function filterByValue<T>(
   }
   return results;
 }
+
+export function zip<T, U>(left: T[], right: U[]): [T, U][] {
+  const results: [T, U][] = [];
+  for (let i = 0; i < left.length; i++) {
+    results.push([left[i], right[i]]);
+  }
+  return results;
+}

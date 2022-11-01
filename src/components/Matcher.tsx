@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { AppReducer, Match, MatchRow, ProcessingState } from "../state";
 import { newEditDistance } from "../utils/match";
-import { filterByValue, joinNorm, uniq } from "../utils/uniq";
+import { filterByValue, joinNorm, uniq, zip } from "../utils/helpers";
 
 export function Progress({ progress }: { progress: number }) {
   const numBars = 40;
@@ -47,6 +47,10 @@ export function Matcher({
         );
       }
     }) as [(string | undefined)[], (string | undefined)[]];
+    const [leftInfo, rightInfo] = [
+      zip(leftValues, leftMetas),
+      zip(rightValues, rightMetas),
+    ];
 
     const [leftJoins, rightJoins] = (["left", "right"] as const).map((side) => {
       const join = app.columnSelections.join;
@@ -62,26 +66,44 @@ export function Matcher({
       ...(rightJoins || []),
     ]);
 
-    const joins: [string, string[], string[]][] = hasJoin
+    const joins: [
+      string,
+      [string, string | undefined][],
+      [string, string | undefined][]
+    ][] = hasJoin
       ? uniqueJoinValues
-          .map<[string, string[], string[]]>((joiner) => [
+          .map<
+            [
+              string,
+              [string, string | undefined][],
+              [string, string | undefined][]
+            ]
+          >((joiner) => [
             joiner,
-            filterByValue(leftJoins, joiner, leftValues),
-            filterByValue(rightJoins, joiner, rightValues),
+            filterByValue(leftJoins, joiner, leftInfo),
+            filterByValue(rightJoins, joiner, rightInfo),
           ])
           .filter(
-            (x: [string, string[], string[]]) =>
-              x[1].length > 0 && x[2].length > 0
+            (
+              x: [
+                string,
+                [string, string | undefined][],
+                [string, string | undefined][]
+              ]
+            ) => x[1].length > 0 && x[2].length > 0
           )
       : // Default join of just left and right values
-        [["default", leftValues, rightValues]];
+        [["default", leftInfo, rightInfo]];
     console.log(joins);
 
     const overallResults: [string, MatchRow[]][] = [];
 
     for (let joinIndex = 0; joinIndex < joins.length; joinIndex++) {
-      console.log("JOIN INDEXX", joinIndex);
-      const [joiner, leftValues, rightValues] = joins[joinIndex];
+      const [joiner, leftInfo, rightInfo] = joins[joinIndex];
+      const leftValues = leftInfo.map((x) => x[0]);
+      const rightValues = rightInfo.map((x) => x[0]);
+      const leftMeta = leftInfo.map((x) => x[1]);
+      const rightMeta = rightInfo.map((x) => x[1]);
       const results: MatchRow[] = [];
       for (let i = 0; i < leftValues.length; i++) {
         timeouts.push(
@@ -94,7 +116,7 @@ export function Matcher({
               matches.push({
                 score,
                 value: rightValues[j],
-                meta: rightMetas[j],
+                meta: rightMeta[j],
                 index: j,
                 col: 0,
                 row,
@@ -107,7 +129,7 @@ export function Matcher({
             }
             results.push({
               value: leftValues[i],
-              meta: leftMetas[i],
+              meta: leftMeta[i],
               index: i,
               rankedMatches: matches,
               row,
