@@ -28,8 +28,7 @@
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject",
-    "postbuild": "react-snap"
+    "eject": "react-scripts eject"
   },
   "eslintConfig": {
     "extends": [
@@ -51,7 +50,6 @@
   },
   "devDependencies": {
     "@types/d3-dsv": "^3.0.0",
-    "@types/tinycolor2": "^1.4.3",
-    "react-snap": "^1.23.0"
+    "@types/tinycolor2": "^1.4.3"
   }
 }
