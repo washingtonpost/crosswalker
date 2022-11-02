@@ -217,6 +217,20 @@ export function appReducer(state: State, action: Action): State {
 
       return resolveTableFlow({
         ...state,
+        ...(state.type === "TablesAddedState"
+          ? state
+          : {
+              hoverColumn: null,
+              setColumnSelection: null,
+              columnSelections: {
+                leftColumn: null,
+                rightColumn: null,
+                leftJoin: null,
+                rightJoin: null,
+                leftMeta: null,
+                rightMeta: null,
+              },
+            }),
         type: "TablesAddedState",
         selectedTable:
           state.type === "TablesAddedState" ? state.selectedTable : 0,
@@ -224,16 +238,6 @@ export function appReducer(state: State, action: Action): State {
           ...(state.type === "TablesAddedState" ? state.tables : []),
           ...tables,
         ],
-        hoverColumn: null,
-        setColumnSelection: null,
-        columnSelections: {
-          leftColumn: null,
-          rightColumn: null,
-          leftJoin: null,
-          rightJoin: null,
-          leftMeta: null,
-          rightMeta: null,
-        },
       });
     case "RemoveTable":
       if (state.type === "TablesAddedState") {
