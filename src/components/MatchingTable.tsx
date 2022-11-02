@@ -14,6 +14,7 @@ import { Header } from "./Header";
 import downloadIcon from "../assets/downloadIcon.svg";
 import { download } from "../utils/download";
 import { joinNorm } from "../utils/helpers";
+import { ProgressBar } from "./ProgressBar";
 
 const COL_WIDTH = 200;
 
@@ -138,6 +139,15 @@ export function MatchingTable({
     return rowsWithMatches[subJoin]?.[row];
   }
 
+  let totalRows = 0;
+  let totalMatchedRows = 0;
+  for (const [join, rows] of Object.entries(app.matches)) {
+    for (let i = 0; i < rows.length; i++) {
+      totalRows++;
+      if (rowHasMatch(i, join)) totalMatchedRows++;
+    }
+  }
+
   function drawTextWithMatches(
     ctx: CanvasRenderingContext2D,
     method: "fill" | "stroke",
@@ -234,8 +244,10 @@ export function MatchingTable({
 
   return (
     <>
-      <Header>
+      <Header lowBottom={true}>
         <div className="upper-section">
+          <ProgressBar percent={totalMatchedRows / totalRows} />
+
           <input
             className="filter"
             placeholder="Filter"
@@ -363,7 +375,7 @@ export function MatchingTable({
       </Header>
       <DataEditor
         width={"calc(100vw - 64px)"}
-        height={"calc(100vh - 190px)"}
+        height={"calc(100vh - 160px)"}
         rowMarkers="both"
         rangeSelect="multi-rect"
         freezeColumns={1}

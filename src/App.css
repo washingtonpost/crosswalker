@@ -180,3 +180,24 @@ select {
 .upper-section {
   float: right;
 }
+
+.bar-container {
+  width: 600px;
+  background: var(--black);
+  border: solid 1px var(--accent);
+  height: 10px;
+  position: absolute;
+  border-radius: 2px;
+}
+
+.bar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: var(--accent);
+}
+
+.low-bottom h1 {
+  margin-bottom: 12px;
+}
