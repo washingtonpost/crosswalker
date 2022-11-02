@@ -369,7 +369,8 @@ export function MatchingTable({
               download("crosswalk.json", results);
             }}
           >
-            Export matches ({allUserMatches.length.toLocaleString()})
+            Export matches ({totalMatchedRows.toLocaleString()} /{" "}
+            {totalRows.toLocaleString()})
           </Button>
         </div>
       </Header>
