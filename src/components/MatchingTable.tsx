@@ -13,6 +13,7 @@ import { ResetButton } from "./ResetButton";
 import { Header } from "./Header";
 import downloadIcon from "../assets/downloadIcon.svg";
 import { download } from "../utils/download";
+import { joinNorm } from "../utils/helpers";
 
 const COL_WIDTH = 200;
 
@@ -35,6 +36,11 @@ export function MatchingTable({
   const [colFilter, setColFilter] = useState<"all" | "hideMatched">(
     "hideMatched"
   );
+  const [searchFilterType, setSearchFilterType] = useState<
+    "both" | "col" | "row"
+  >("both");
+  const [searchFilter, setSearchFilter] = useState("");
+
   const [showMeta, setShowMeta] = useState<"show" | "hide">("show");
 
   const allJoins = Object.keys(app.matches);
@@ -194,12 +200,25 @@ export function MatchingTable({
     return "col" in match;
   }
 
+  const searchFn = (match: MatchRow | Match, filter: string): boolean => {
+    const query = joinNorm(filter);
+    if (query.length === 0) return true;
+    const matched = joinNorm(match.value).includes(query);
+    if (matched) return true;
+    if (match.meta) {
+      return joinNorm(match.meta).includes(query);
+    }
+    return false;
+  };
+
   const filteredMatchRows = new FilteredMatchRows(
     app.matches[join],
     (cell) =>
-      colFilter === "all"
+      (colFilter === "all"
         ? true
-        : getUserMatched(cell) || !isMatchedElsewhere(cell),
+        : getUserMatched(cell) || !isMatchedElsewhere(cell)) &&
+      ((searchFilterType !== "both" && searchFilterType !== "col") ||
+        searchFn(cell, searchFilter)),
     (a, b) => {
       const userMatchedA = getUserMatched(a);
       const userMatchedB = getUserMatched(b);
@@ -207,13 +226,25 @@ export function MatchingTable({
       if (!userMatchedA && userMatchedB) return 1;
       return 0;
     },
-    filters[rowFilter]
+    (row) =>
+      filters[rowFilter](row) &&
+      ((searchFilterType !== "both" && searchFilterType !== "row") ||
+        searchFn(row, searchFilter))
   );
 
   return (
     <>
       <Header>
         <div className="upper-section">
+          <input
+            className="filter"
+            placeholder="Filter"
+            value={searchFilter}
+            onInput={(e) => {
+              setSearchFilter((e.target as HTMLInputElement).value);
+            }}
+          />
+
           <ResetButton slim={true} app={app} reducer={reducer} />
 
           <Button
@@ -656,6 +687,17 @@ export function MatchingTable({
         >
           <option value="show">Show metadata</option>
           <option value="hide">Hide metadata</option>
+        </select>
+        <select
+          onInput={(e) =>
+            setSearchFilterType(
+              (e.target as HTMLSelectElement).value as "both" | "col" | "row"
+            )
+          }
+        >
+          <option value="both">Filter all</option>
+          <option value="row">Filter source</option>
+          <option value="col">Filter prediction</option>
         </select>
       </div>
     </>

@@ -89,17 +89,6 @@ export function extractParts(s: string): string[] {
   return s.split(/[^a-zA-Z0-9]+/).filter((x) => x !== "");
 }
 
-function dedupeParts(parts: string[]): string[] {
-  const dict: { [key: string]: boolean } = {};
-  const newParts: string[] = [];
-  for (const part of parts) {
-    if (dict[part]) continue;
-    dict[part] = true;
-    newParts.push(part);
-  }
-  return newParts;
-}
-
 function concatenateParts(parts: string[]): string {
   return parts.join("-");
 }
@@ -177,8 +166,8 @@ function calculateEditDistanceInfo(parts1: string[], parts2: string[]) {
 
 export function newEditDistance(s1: string, s2: string): number {
   const [perfectMatches, minEditDistance] = calculateEditDistanceInfo(
-    dedupeParts(extractParts(s1)),
-    dedupeParts(extractParts(s2))
+    extractParts(s1),
+    extractParts(s2)
   );
 
   return -perfectMatches * 2 + minEditDistance;
