@@ -1,4 +1,6 @@
+/** A progress bar at the top of the screen */
 export function ProgressBar({ percent }: { percent: number }) {
+  // Clamp percent
   if (percent < 0) percent = 0;
   if (percent > 1) percent = 1;
 

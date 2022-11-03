@@ -1,11 +1,13 @@
 import { ReactNode } from "react";
 import logo from "../assets/logo.svg";
 
+/** A page header component */
 export function Header({
   children,
   lowBottom = false,
 }: {
   children?: ReactNode;
+  /** If true, makes the bottom margin lower */
   lowBottom?: boolean;
 }) {
   return (
