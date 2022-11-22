@@ -1,4 +1,11 @@
-import { AppReducer, Match, MatchingState, MatchRow, UndoRedo } from "../state";
+import {
+  AppReducer,
+  Match,
+  MatchingState,
+  MatchRow,
+  TableIndex,
+  UndoRedo,
+} from "../state";
 import DataEditor, {
   GridCellKind,
   GridColumn,
@@ -15,6 +22,9 @@ import downloadIcon from "../assets/downloadIcon.svg";
 import { download } from "../utils/download";
 import { FilteredMatchRows, joinNorm } from "../utils/helpers";
 import { ProgressBar } from "./ProgressBar";
+import hamburger from "../assets/hamburger.svg";
+import { Loader } from "./Loader";
+import { csvFormatRows } from "d3-dsv";
 
 /** Default width of each table column */
 const COL_WIDTH = 200;
@@ -31,6 +41,8 @@ export function MatchingTable({
   app: MatchingState;
   useUndoRedo: () => [undo: UndoRedo, redo: UndoRedo];
 }) {
+  // Whether the hamburger menu is activated
+  const [hamburgerOpen, setHamburgerOpen] = useState(false);
   // The column widths (updated by dragging columns in the table)
   const [colWidths, setColWidths] = useState<{ [key: number]: number }>({});
   // The current selected grid cells (updated by selecting cells in the table)
@@ -220,10 +232,33 @@ export function MatchingTable({
         searchFn(row, searchFilter))
   );
 
+  const JoinValueFilter = () => (
+    // Join value filter
+    <select onInput={(e) => setJoin((e.target as HTMLSelectElement).value)}>
+      {allJoins.map((join) => (
+        <option key={join} value={join}>
+          {join} (
+          {app.matches[join]
+            .filter((matchRow: MatchRow) => rowHasMatch(matchRow.row, join))
+            .length.toLocaleString()}{" "}
+          / {app.matches[join].length.toLocaleString()})
+        </option>
+      ))}
+    </select>
+  );
+
   return (
     <>
-      <Header lowBottom={true}>
-        <div className="upper-section">
+      <Header lowBottom={true} flex={true}>
+        <div
+          className="hamburger"
+          onClick={() => setHamburgerOpen(!hamburgerOpen)}
+        >
+          <img src={hamburger} alt="Show more controls" />
+        </div>
+        <div
+          className={`header-buttons ${hamburgerOpen ? "hamburger-open" : ""}`}
+        >
           {/* Overall matched progress bar */}
           <ProgressBar percent={totalMatchedRows / totalRows} />
 
@@ -262,48 +297,17 @@ export function MatchingTable({
           <Button
             slim={true}
             onClick={() => {
-              download("crosswalk_savepoint.json", app);
+              download("crosswalk_savepoint.json", JSON.stringify(app));
             }}
           >
             Save
           </Button>
 
-          {/* Load state */}
-          <input
-            type="file"
-            id="file-load-button-upload"
-            className="hidden"
-            onInput={(e) =>
-              (async () => {
-                let loaded = false;
-                const target = e.target as HTMLInputElement;
-                const files = Array.from(target.files || []);
-
-                if (files.length === 1) {
-                  const rawContents = await files[0].text();
-                  const json = JSON.parse(rawContents) as MatchingState;
-
-                  if (json.type === "MatchingState") {
-                    reducer({
-                      type: "LoadState",
-                      state: json,
-                    });
-                    loaded = true;
-                  }
-                }
-
-                // Clear the file input
-                target.value = "";
-
-                if (!loaded) {
-                  alert("Improper file specified");
-                }
-              })()
-            }
-          />
-          <label htmlFor="file-load-button-upload" className="button-tweak">
-            <Button slim={true}>Load</Button>
-          </label>
+          <Loader app={app} reducer={reducer}>
+            <Button type="primary" slim={true}>
+              Load
+            </Button>
+          </Loader>
 
           {/* Export results */}
           <Button
@@ -313,47 +317,68 @@ export function MatchingTable({
               alt: "Export",
             }}
             onClick={() => {
-              const getRow = (
-                join: string,
-                match: Match | MatchRow
-              ): [string, string] | [string, string, string] => {
-                if (match.meta) {
-                  return [join, match.value, match.meta];
-                }
-                return [join, match.value];
-              };
+              const makeHeader = (tableIndex: TableIndex): string =>
+                `${tableIndex.column} (${tableIndex.tableName})`;
 
-              // Aggregate matches
-              const p1s: {
-                [key: string]: ([string, string] | [string, string, string])[];
-              } = {};
-              for (const [join, matchRow, match] of allUserMatches) {
-                const p1 = getRow(join, matchRow);
-                const p1Key = JSON.stringify(p1);
-                const p2 = getRow(join, match);
-                if (p1s[p1Key] == null) {
-                  p1s[p1Key] = [];
-                }
-                p1s[p1Key].push(p2);
+              const headers: string[] = [];
+              // Left column
+              headers.push(makeHeader(app.columnSelections.left));
+              // Right column
+              headers.push(makeHeader(app.columnSelections.right));
+              // Left meta
+              if (app.columnSelections.meta.left != null) {
+                headers.push(makeHeader(app.columnSelections.meta.left));
+              }
+              // Right meta
+              if (app.columnSelections.meta.right != null) {
+                headers.push(makeHeader(app.columnSelections.meta.right));
+              }
+              // Join
+              if (app.columnSelections.join != null) {
+                headers.push(makeHeader(app.columnSelections.join.left));
               }
 
-              // Assemble matches
-              const results: {
-                precincts1: ([string, string] | [string, string, string])[];
-                precincts2: ([string, string] | [string, string, string])[];
-              }[] = [];
-              for (const [p1Key, p2s] of Object.entries(p1s)) {
-                const p1 = JSON.parse(p1Key) as
-                  | [string, string]
-                  | [string, string, string];
-                results.push({
-                  precincts1: [p1],
-                  precincts2: p2s,
-                });
+              const rows: string[][] = [headers];
+
+              // Sort the user matches in a way helpful for downloading
+              const sortedMatches = allUserMatches.sort((a, b) => {
+                // Sort by join, then by match row, then by match
+                if (a[0] === b[0]) {
+                  if (a[1].value === b[1].value) {
+                    return a[2].value.localeCompare(b[2].value);
+                  } else {
+                    return a[1].value.localeCompare(b[1].value);
+                  }
+                } else {
+                  return a[0].localeCompare(b[0]);
+                }
+              });
+
+              for (const [join, matchRow, match] of sortedMatches) {
+                const row: string[] = [];
+                // Left column
+                row.push(matchRow.value);
+                // Right column
+                row.push(match.value);
+                // Left meta
+                if (app.columnSelections.meta.left != null) {
+                  row.push(matchRow.meta || "");
+                }
+                // Right meta
+                if (app.columnSelections.meta.right != null) {
+                  row.push(match.meta || "");
+                }
+                // Join
+                if (app.columnSelections.join != null) {
+                  row.push(join);
+                }
+
+                rows.push(row);
               }
 
+              const csvString = csvFormatRows(rows);
               // Download results
-              download("crosswalk.json", results);
+              download("crosswalk.csv", csvString);
             }}
           >
             Export matches ({totalMatchedRows.toLocaleString()} /{" "}
@@ -362,194 +387,215 @@ export function MatchingTable({
         </div>
       </Header>
 
-      {/* Spreadsheet */}
-      <DataEditor
-        width={"calc(100vw - 64px)"}
-        height={"calc(100vh - 160px)"}
-        rowMarkers="both"
-        rangeSelect="multi-rect"
-        freezeColumns={1}
-        smoothScrollX={true}
-        smoothScrollY={true}
-        theme={{
-          accentColor: colors.accent,
-          accentLight: tinycolor(colors.bgColor).lighten(20).toHexString(),
+      <div className={`data-editor ${hamburgerOpen ? "hamburger-open" : ""}`}>
+        {/* Spreadsheet */}
+        <DataEditor
+          width={"100%"}
+          height={"100%"}
+          rowMarkers="both"
+          rangeSelect="multi-rect"
+          freezeColumns={1}
+          smoothScrollX={true}
+          smoothScrollY={true}
+          theme={{
+            accentColor: colors.accent,
+            accentLight: tinycolor(colors.bgColor).lighten(20).toHexString(),
 
-          textDark: colors.fgColor,
-          textMedium: "#b8b8b8",
-          textLight: "#a0a0a0",
-          textBubble: "#ffffff",
+            textDark: colors.fgColor,
+            textMedium: "#b8b8b8",
+            textLight: "#a0a0a0",
+            textBubble: "#ffffff",
 
-          bgIconHeader: "#b8b8b8",
-          fgIconHeader: "#000000",
-          textHeader: colors.fgColor,
-          textHeaderSelected: "#000000",
+            bgIconHeader: "#b8b8b8",
+            fgIconHeader: "#000000",
+            textHeader: colors.fgColor,
+            textHeaderSelected: "#000000",
 
-          bgCell: colors.bgColor,
-          bgCellMedium: "#202027",
-          bgHeader: colors.primary,
-          bgHeaderHasFocus: tinycolor(colors.primary).lighten(10).toHexString(),
-          bgHeaderHovered: "#404040",
+            bgCell: colors.bgColor,
+            bgCellMedium: "#202027",
+            bgHeader: colors.primary,
+            bgHeaderHasFocus: tinycolor(colors.primary)
+              .lighten(10)
+              .toHexString(),
+            bgHeaderHovered: "#404040",
 
-          bgBubble: "#212121",
-          bgBubbleSelected: "#000000",
+            bgBubble: "#212121",
+            bgBubbleSelected: "#000000",
 
-          bgSearchResult: "#423c24",
+            bgSearchResult: "#423c24",
 
-          borderColor: "rgba(225,225,225,0.2)",
-          drilldownBorder: "rgba(225,225,225,0.4)",
+            borderColor: "rgba(225,225,225,0.2)",
+            drilldownBorder: "rgba(225,225,225,0.4)",
 
-          linkColor: "#4F5DFF",
+            linkColor: "#4F5DFF",
 
-          headerFontStyle: "bold 18px",
-          baseFontStyle: "18px",
-          fontFamily:
-            "Franklin ITC, Inter, Roboto, -apple-system, BlinkMacSystemFont, avenir next, avenir, segoe ui, helvetica neue, helvetica, Ubuntu, noto, arial, sans-serif",
-        }}
-        onKeyDown={(e) => {
-          if (
-            e.keyCode === 13 &&
-            gridSelection != null &&
-            gridSelection.current != null
-          ) {
-            // Press "Enter"
-            reducer({
-              type: "ToggleUserMatches",
-              data: filteredMatchRows,
-              selections: [
-                gridSelection.current.range,
-                ...gridSelection.current.rangeStack,
-              ],
-              join,
-            });
+            headerFontStyle: "bold 18px",
+            baseFontStyle: "18px",
+            fontFamily:
+              "Franklin ITC, Inter, Roboto, -apple-system, BlinkMacSystemFont, avenir next, avenir, segoe ui, helvetica neue, helvetica, Ubuntu, noto, arial, sans-serif",
+          }}
+          onCellActivated={() => {
+            // Handle double-clicking or pressing enter/space
+            if (gridSelection != null && gridSelection.current != null) {
+              reducer({
+                type: "ToggleUserMatches",
+                data: filteredMatchRows,
+                selections: [
+                  gridSelection.current.range,
+                  ...gridSelection.current.rangeStack,
+                ],
+                join,
+              });
+            }
+          }}
+          onKeyDown={(e) => {
+            // Handle pressing enter
             if (
-              gridSelection.current.range.width === 1 &&
-              gridSelection.current.range.height === 1 &&
-              gridSelection.current.rangeStack.length === 0 &&
-              gridSelection.current.range.y < filteredMatchRows.numRows - 1
+              e.keyCode === 13 &&
+              gridSelection != null &&
+              gridSelection.current != null
             ) {
-              // Advance to the next row
+              if (
+                gridSelection.current.range.width === 1 &&
+                gridSelection.current.range.height === 1 &&
+                gridSelection.current.rangeStack.length === 0 &&
+                gridSelection.current.range.y < filteredMatchRows.numRows - 1
+              ) {
+                // Advance to the next row
+                setGridSelection({
+                  ...gridSelection,
+                  current: {
+                    ...gridSelection.current,
+                    cell: [
+                      gridSelection.current.cell[0],
+                      gridSelection.current.cell[1] + 1,
+                    ],
+                    range: {
+                      ...gridSelection.current.range,
+                      y: gridSelection.current.range.y + 1,
+                    },
+                  },
+                });
+              }
+            } else if (e.metaKey || e.ctrlKey) {
+              // Undo/redo
+              if (
+                e.key === "z" &&
+                !e.shiftKey &&
+                undo.isPossible &&
+                app.canUndo
+              ) {
+                undo();
+              } else if (e.key === "z" && e.shiftKey && redo.isPossible) {
+                redo();
+              }
+            } else if (
+              e.key === "Backspace" &&
+              gridSelection != null &&
+              gridSelection.current != null
+            ) {
+              // Handle backspace
+              reducer({
+                type: "ToggleUserMatches",
+                selections: [
+                  gridSelection.current.range,
+                  ...gridSelection.current.rangeStack,
+                ],
+                data: filteredMatchRows,
+                join,
+                forceState: false,
+              });
+            }
+          }}
+          onGridSelectionChange={(gridSelection) => {
+            if (gridSelection.current && gridSelection.current.range.x === 0) {
+              // Push grid selection to ensure col 0 (source) isn't selected
               setGridSelection({
                 ...gridSelection,
                 current: {
                   ...gridSelection.current,
-                  cell: [
-                    gridSelection.current.cell[0],
-                    gridSelection.current.cell[1] + 1,
-                  ],
                   range: {
                     ...gridSelection.current.range,
-                    y: gridSelection.current.range.y + 1,
+                    x: 1,
+                    width: gridSelection.current.range.width - 1,
                   },
                 },
               });
+            } else {
+              setGridSelection(gridSelection);
             }
-          } else if (e.metaKey || e.ctrlKey) {
-            // Undo/redo
-            if (
-              e.key === "z" &&
-              !e.shiftKey &&
-              undo.isPossible &&
-              app.canUndo
-            ) {
-              undo();
-            } else if (e.key === "z" && e.shiftKey && redo.isPossible) {
-              redo();
+          }}
+          gridSelection={gridSelection}
+          onColumnResize={(_, newSize, colIndex) => {
+            // Update column widths
+            setColWidths({ ...colWidths, [colIndex]: newSize });
+          }}
+          drawCell={({ ctx, rect, cell, col }) => {
+            if (cell.kind !== GridCellKind.Custom) {
+              // Only draw custom cells
+              return false;
             }
-          } else if (
-            e.key === "Backspace" &&
-            gridSelection != null &&
-            gridSelection.current != null
-          ) {
-            // Handle backspace
-            reducer({
-              type: "ToggleUserMatches",
-              selections: [
-                gridSelection.current.range,
-                ...gridSelection.current.rangeStack,
-              ],
-              data: filteredMatchRows,
-              join,
-              forceState: false,
-            });
-          }
-        }}
-        onGridSelectionChange={(gridSelection) => {
-          if (gridSelection.current && gridSelection.current.range.x === 0) {
-            // Push grid selection to ensure col 0 (source) isn't selected
-            setGridSelection({
-              ...gridSelection,
-              current: {
-                ...gridSelection.current,
-                range: {
-                  ...gridSelection.current.range,
-                  x: 1,
-                  width: gridSelection.current.range.width - 1,
-                },
-              },
-            });
-          } else {
-            setGridSelection(gridSelection);
-          }
-        }}
-        gridSelection={gridSelection}
-        onColumnResize={(_, newSize, colIndex) => {
-          // Update column widths
-          setColWidths({ ...colWidths, [colIndex]: newSize });
-        }}
-        drawCell={({ ctx, rect, cell, col }) => {
-          if (cell.kind !== GridCellKind.Custom) {
-            // Only draw custom cells
-            return false;
-          }
 
-          const matchCell = cell.data as Match | MatchRow;
-          // Whether to use bold text
-          const isBold = col === 1 && rowHasMatch(matchCell.row);
-          const isUserMatch =
-            isMatchCell(matchCell) && getUserMatched(matchCell);
+            const matchCell = cell.data as Match | MatchRow;
+            // Whether to use bold text
+            const isBold = col === 1 && rowHasMatch(matchCell.row);
+            const isUserMatch =
+              isMatchCell(matchCell) && getUserMatched(matchCell);
 
-          ctx.save();
-          if (isBold) {
-            // Draw matched accent background if the cell/row is matched
-            ctx.fillStyle = colors.accent;
-            ctx.fillRect(
-              rect.x + 1,
-              rect.y + 1,
-              rect.width - 2,
-              rect.height - 2
-            );
-          }
-          ctx.restore();
-
-          /**
-           * Draw text
-           * @param text The text to draw
-           * @param yOffset The y offset
-           * @param sizeOffset The size offset (0 is default sizes)
-           * @param stroked Whether the text is thickly stroked
-           */
-          const draw = (
-            text: string,
-            yOffset = 0,
-            sizeOffset = 0,
-            stroked = true
-          ) => {
             ctx.save();
-            ctx.translate(0, yOffset);
-            ctx.fillStyle = "white";
-            ctx.font = `${isBold ? "bold" : ""} ${
-              18 + sizeOffset
-            }px Franklin ITC`;
-            if (isBold || isUserMatch) {
-              // Draw text outline
-              ctx.strokeStyle = colors.primary;
-              ctx.lineWidth = stroked ? 4 : 2;
-              ctx.lineJoin = "round";
-              ctx.miterLimit = 2;
+            if (isBold) {
+              // Draw matched accent background if the cell/row is matched
+              ctx.fillStyle = colors.accent;
+              ctx.fillRect(
+                rect.x + 1,
+                rect.y + 1,
+                rect.width - 2,
+                rect.height - 2
+              );
+            }
+            ctx.restore();
+
+            /**
+             * Draw text
+             * @param text The text to draw
+             * @param yOffset The y offset
+             * @param sizeOffset The size offset (0 is default sizes)
+             * @param stroked Whether the text is thickly stroked
+             */
+            const draw = (
+              text: string,
+              yOffset = 0,
+              sizeOffset = 0,
+              stroked = true
+            ) => {
+              ctx.save();
+              ctx.translate(0, yOffset);
+              ctx.fillStyle = "white";
+              ctx.font = `${isBold ? "bold" : ""} ${
+                18 + sizeOffset
+              }px Franklin ITC`;
+              if (isBold || isUserMatch) {
+                // Draw text outline
+                ctx.strokeStyle = colors.primary;
+                ctx.lineWidth = stroked ? 4 : 2;
+                ctx.lineJoin = "round";
+                ctx.miterLimit = 2;
+                drawTextWithMatches(
+                  ctx,
+                  "stroke",
+                  text,
+                  col === 1 || isUserMatch
+                    ? ""
+                    : app.matches[join][matchCell.row].value,
+                  rect.x + 5,
+                  rect.y + rect.height / 2 + 1,
+                  sizeOffset
+                );
+              }
+              // Draw text on top
               drawTextWithMatches(
                 ctx,
-                "stroke",
+                "fill",
                 text,
                 col === 1 || isUserMatch
                   ? ""
@@ -558,63 +604,29 @@ export function MatchingTable({
                 rect.y + rect.height / 2 + 1,
                 sizeOffset
               );
+              ctx.restore();
+            };
+
+            // Draw with metadata if available
+            if (showMeta === "show" && matchCell.meta) {
+              draw(matchCell.value, -7, -1, isMatchCell(matchCell));
+              draw(matchCell.meta, 8, -6, isMatchCell(matchCell));
+            } else {
+              // Just draw plain text without metadata
+              draw(matchCell.value, 0, 0, isMatchCell(matchCell));
             }
-            // Draw text on top
-            drawTextWithMatches(
-              ctx,
-              "fill",
-              text,
-              col === 1 || isUserMatch
-                ? ""
-                : app.matches[join][matchCell.row].value,
-              rect.x + 5,
-              rect.y + rect.height / 2 + 1,
-              sizeOffset
-            );
-            ctx.restore();
-          };
 
-          // Draw with metadata if available
-          if (showMeta === "show" && matchCell.meta) {
-            draw(matchCell.value, -7, -1, isMatchCell(matchCell));
-            draw(matchCell.meta, 8, -6, isMatchCell(matchCell));
-          } else {
-            // Just draw plain text without metadata
-            draw(matchCell.value, 0, 0, isMatchCell(matchCell));
-          }
-
-          return true;
-        }}
-        getCellContent={(cell) => {
-          const [column, row] = cell;
-          let filteredMatches;
-          try {
-            // Get the row data in a memoized, performant way
-            filteredMatches = filteredMatchRows.getRow(row);
-          } catch (e) {
-            // This rarely fails when the render is called while data changes
-            // Just show a blank cell
-            return {
-              kind: GridCellKind.Text,
-              data: "",
-              allowOverlay: false,
-              displayData: "",
-            };
-          }
-
-          if (column === 0) {
-            // Draw the source column cell
-            return {
-              kind: GridCellKind.Custom,
-              data: filteredMatches,
-              allowOverlay: false,
-              copyData: filteredMatches.value,
-            };
-          } else {
-            // Draw the prediction column cell
-            const match = filteredMatches.rankedMatches[column - 1];
-            if (!match) {
-              // Simple empty text if the cell is out of bounds
+            return true;
+          }}
+          getCellContent={(cell) => {
+            const [column, row] = cell;
+            let filteredMatches;
+            try {
+              // Get the row data in a memoized, performant way
+              filteredMatches = filteredMatchRows.getRow(row);
+            } catch (e) {
+              // This rarely fails when the render is called while data changes
+              // Just show a blank cell
               return {
                 kind: GridCellKind.Text,
                 data: "",
@@ -622,52 +634,85 @@ export function MatchingTable({
                 displayData: "",
               };
             }
-            return {
-              kind: GridCellKind.Custom,
-              data: match,
-              allowOverlay: false,
-              copyData: match.value,
-              themeOverride:
-                match && getUserMatched(match)
-                  ? {
-                      // Show accented bg if matched
-                      bgCell: colors.accent,
-                      textDark: "black",
-                      accentColor: tinycolor(colors.accent)
-                        .lighten(10)
-                        .toHexString(),
-                      accentLight: tinycolor(colors.accent)
-                        .darken(10)
-                        .toHexString(),
-                    }
-                  : isMatchedElsewhere(match)
-                  ? {
-                      // Show red if matched elsewhere and not hidden
-                      bgCell: tinycolor("red").darken(15).toHexString(),
-                      accentLight: tinycolor("red").darken(30).toHexString(),
-                    }
-                  : undefined,
-            };
-          }
-        }}
-        columns={columns}
-        rows={filteredMatchRows.numRows}
-      />
 
+            if (column === 0) {
+              // Draw the source column cell
+              return {
+                kind: GridCellKind.Custom,
+                data: filteredMatches,
+                allowOverlay: false,
+                copyData: filteredMatches.value,
+              };
+            } else {
+              // Draw the prediction column cell
+              const match = filteredMatches.rankedMatches[column - 1];
+              if (!match) {
+                // Simple empty text if the cell is out of bounds
+                return {
+                  kind: GridCellKind.Text,
+                  data: "",
+                  allowOverlay: false,
+                  displayData: "",
+                };
+              }
+              return {
+                kind: GridCellKind.Custom,
+                data: match,
+                allowOverlay: false,
+                copyData: match.value,
+                themeOverride:
+                  match && getUserMatched(match)
+                    ? {
+                        // Show accented bg if matched
+                        bgCell: colors.accent,
+                        textDark: "black",
+                        accentColor: tinycolor(colors.accent)
+                          .lighten(10)
+                          .toHexString(),
+                        accentLight: tinycolor(colors.accent)
+                          .darken(10)
+                          .toHexString(),
+                      }
+                    : isMatchedElsewhere(match)
+                    ? {
+                        // Show red if matched elsewhere and not hidden
+                        bgCell: tinycolor("red").darken(15).toHexString(),
+                        accentLight: tinycolor("red").darken(30).toHexString(),
+                      }
+                    : undefined,
+              };
+            }
+          }}
+          columns={columns}
+          rows={filteredMatchRows.numRows}
+        />
+      </div>
+      {/* Legend */}
+      <div className={`legend ${hamburgerOpen ? "hamburger-open" : ""}`}>
+        <div className="legend-name">Legend</div>
+        <div className="legend-group">
+          <div className="square legend-matched"></div>
+          <div className="legend-text">Matched</div>
+        </div>
+        <div className="legend-group">
+          <div className="square legend-unmatched"></div>
+          <div className="legend-text">Unmatched</div>
+        </div>
+      </div>
       {/* Footer controls */}
-      <div className="button-section">
-        {/* Join value filter */}
-        <select onInput={(e) => setJoin((e.target as HTMLSelectElement).value)}>
-          {allJoins.map((join) => (
-            <option key={join} value={join}>
-              {join} (
-              {app.matches[join]
-                .filter((matchRow: MatchRow) => rowHasMatch(matchRow.row, join))
-                .length.toLocaleString()}{" "}
-              / {app.matches[join].length.toLocaleString()})
-            </option>
-          ))}
-        </select>
+      <div
+        className={`matching-footer-buttons-mobile ${
+          hamburgerOpen ? "hamburger-open" : ""
+        }`}
+      >
+        <JoinValueFilter />
+      </div>
+      <div
+        className={`button-section matching-footer-buttons ${
+          hamburgerOpen ? "hamburger-open" : ""
+        }`}
+      >
+        <JoinValueFilter />
 
         {/* Row display filter */}
         <select

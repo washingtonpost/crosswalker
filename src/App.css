@@ -1,3 +1,64 @@
+.App {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  justify-content: space-between;
+}
+
+.App-header {
+  position: sticky;
+  top: 0;
+  background: var(--bg-color);
+  margin: 0 var(--margin-side);
+  padding-top: var(--margin-vert);
+}
+
+.App-header.flex h1 {
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.header-buttons {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-self: center;
+  margin-bottom: -8px;
+}
+
+.header-buttons > * {
+  margin-bottom: 8px;
+}
+
+.extra-right {
+  margin-right: 45px;
+}
+
+.data-editor {
+  flex: 1 0 auto;
+  margin: 0 var(--margin-side);
+}
+
+div.matching-footer-buttons,
+div.matching-footer-buttons-mobile {
+  flex-shrink: 0;
+  margin: 10px var(--margin-side);
+  margin-bottom: calc(var(--margin-vert) * -0.5 - 6px);
+}
+
+.matching-footer-buttons select {
+  margin-bottom: 6px;
+}
+
+.main {
+  flex: 1 0 auto;
+  margin: 0 var(--margin-side);
+}
+
 .App-logo {
   height: 46px;
   pointer-events: none;
@@ -5,7 +66,7 @@
 
 h1 {
   font-size: 50px;
-  margin: 0 0 40px 0;
+  margin: 0;
 }
 
 h1 *,
@@ -53,15 +114,11 @@ button.danger-button {
 }
 
 label {
-  display: inline-block;
+  display: inline-flex;
 }
 
 label * {
   pointer-events: none;
-}
-
-.button-tweak {
-  margin-top: -6px;
 }
 
 .hidden {
@@ -131,6 +188,10 @@ th.hover {
   margin-top: 30px;
 }
 
+.extra-bottom {
+  margin-bottom: 8px;
+}
+
 .tick {
   background: var(--primary);
   border-radius: 2px;
@@ -177,18 +238,13 @@ select {
   border: solid 1px var(--primary);
 }
 
-.upper-section {
-  float: right;
-}
-
 .bar-container {
-  position: fixed;
   top: 0;
   left: 0;
   right: 0;
   background: var(--black);
   height: 8px;
-  position: absolute;
+  position: fixed;
 }
 
 .bar {
@@ -201,4 +257,163 @@ select {
 
 .low-bottom h1 {
   margin-bottom: 12px;
+}
+
+.footer {
+  margin-top: var(--margin-vert);
+  padding: 0 var(--margin-side);
+  background: var(--black);
+  padding: 7px 32px 10px 32px;
+  border-top: solid 1px var(--secondary);
+  flex-shrink: 0;
+  position: sticky;
+  bottom: 0;
+}
+
+.footer a {
+  text-decoration: none;
+}
+
+nav * {
+  display: inline-block;
+  font-size: 16px;
+  vertical-align: middle;
+}
+
+nav > * {
+  margin-right: 10px;
+}
+
+a,
+.inline-button {
+  text-decoration: underline;
+  color: var(--fg-color);
+}
+
+.inline-button,
+button,
+label {
+  cursor: pointer;
+}
+
+.secondary {
+  color: var(--secondary);
+}
+
+.footer img {
+  height: 20px;
+}
+
+.no-select {
+  user-select: none;
+}
+
+p {
+  max-width: 60ch;
+}
+
+.advanced {
+  background: var(--secondary-transparent);
+  max-width: 50ch;
+  border-radius: 4px;
+  padding: 1px 16px 16px 16px;
+  font-size: 16px;
+  display: inline-flex;
+  flex-direction: column;
+}
+
+.intro-container {
+  display: flex;
+  row-gap: 20px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.hamburger,
+.matching-footer-buttons-mobile {
+  display: none;
+}
+
+.hamburger img {
+  height: 20px;
+}
+
+.legend {
+  margin: 2px var(--margin-side) -3px var(--margin-side);
+}
+
+.legend-name {
+  color: var(--white);
+  text-transform: uppercase;
+  font-size: 12px !important;
+  margin-right: 10px;
+  display: inline-block;
+  vertical-align: baseline;
+}
+
+.legend > *,
+.legend-text {
+  display: inline-block;
+  vertical-align: middle;
+  font-size: 16px;
+}
+
+.legend-group:not(:last-child) {
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 10px;
+}
+
+.square {
+  display: inline-block;
+  vertical-align: middle;
+  width: 15px;
+  height: 15px;
+  box-sizing: border-box;
+  margin-right: 5px;
+}
+
+.square.legend-matched {
+  background: var(--accent);
+  border: solid 1px var(--secondary);
+}
+
+.square.legend-unmatched {
+  background: var(--secondary);
+  border: solid 1px var(--secondary-transparent);
+}
+
+@media only screen and (max-width: 800px) {
+  .header-buttons,
+  .matching-footer-buttons {
+    display: none !important;
+  }
+
+  .header-buttons.hamburger-open {
+    display: inline-flex !important;
+  }
+
+  .matching-footer-buttons.hamburger-open {
+    display: block !important;
+  }
+
+  .data-editor.hamburger-open,
+  .legend.hamburger-open {
+    pointer-events: none;
+    opacity: 30%;
+    filter: grayscale(1) blur(2px);
+  }
+
+  .hamburger,
+  .matching-footer-buttons-mobile {
+    display: block;
+  }
+
+  .matching-footer-buttons-mobile.hamburger-open {
+    display: none;
+  }
+
+  .crosswalker-text {
+    font-size: 30px;
+  }
 }

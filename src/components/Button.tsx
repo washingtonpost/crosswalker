@@ -12,6 +12,8 @@ export interface ButtonProps {
   disabled?: boolean;
   /** The button variant */
   type?: "primary" | "secondary" | "inverted" | "danger";
+  /** Whether to add a small margin at the bottom (default: false) */
+  extraBottom?: boolean;
   /** The click handler for the button */
   onClick?: () => void;
   children?: React.ReactNode;
@@ -23,6 +25,7 @@ export function Button({
   icon,
   type = "primary",
   disabled = false,
+  extraBottom = false,
   children,
   onClick = () => {},
 }: ButtonProps) {
@@ -31,7 +34,7 @@ export function Button({
       disabled={disabled}
       className={`${type}-button ${slim ? "slim" : ""} ${
         disabled ? "disabled" : ""
-      }`}
+      } ${extraBottom ? "extra-bottom" : ""}`}
       onClick={onClick}
     >
       {icon && <img src={icon.url} alt={icon.alt} />}

@@ -36,6 +36,7 @@ export function FileUploader({ app, reducer }: AppReducer) {
       {app.type === "TablesAddedState" &&
         app.tables.map((table, i) => (
           <Button
+            extraBottom={true}
             icon={{
               url: fileIcon,
               alt: "File",
@@ -54,8 +55,9 @@ export function FileUploader({ app, reducer }: AppReducer) {
         ))}
 
       {(app.type === "WelcomeState" || app.type === "TablesAddedState") && (
-        <label htmlFor="file-upload">
+        <label htmlFor="file-upload" className="extra-right">
           <Button
+            extraBottom={true}
             slim={app.type !== "WelcomeState"}
             type={app.type === "WelcomeState" ? "primary" : "secondary"}
             icon={{

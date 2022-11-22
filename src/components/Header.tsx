@@ -5,16 +5,31 @@ import logo from "../assets/logo.svg";
 export function Header({
   children,
   lowBottom = false,
+  flex = false,
 }: {
   children?: ReactNode;
   /** If true, makes the bottom margin lower */
   lowBottom?: boolean;
+  /** If true, makes the header use flex positioning */
+  flex?: boolean;
 }) {
   return (
-    <header className={`App-header ${lowBottom ? "low-bottom" : ""}`}>
+    <header
+      className={`App-header ${lowBottom ? "low-bottom" : ""} ${
+        flex ? "flex" : ""
+      }`}
+    >
       <h1>
-        <img src={logo} className="App-logo" alt="logo" />
-        <span>Crosswalker</span>
+        <span>
+          <img src={logo} className="no-select App-logo" alt="logo" />
+          <span
+            className={`crosswalker-text no-select ${
+              flex ? "extra-right" : ""
+            }`}
+          >
+            Crosswalker
+          </span>
+        </span>
         {children}
       </h1>
     </header>

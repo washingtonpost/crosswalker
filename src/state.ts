@@ -428,6 +428,7 @@ export function appReducer(state: State, action: Action): State {
               x++
             ) {
               const matchCell = action.data.getRow(y).rankedMatches[x];
+              if (matchCell == null) continue;
               if (
                 state.userMatches[action.join][
                   `${matchCell.col},${matchCell.row}`
@@ -440,6 +441,7 @@ export function appReducer(state: State, action: Action): State {
             }
           }
         }
+
         // Apply selection
         const selectState =
           action.forceState != null
@@ -462,6 +464,7 @@ export function appReducer(state: State, action: Action): State {
             ) {
               // Update the user matches
               const matchCell = action.data.getRow(y).rankedMatches[x];
+              if (matchCell == null) continue;
               newMatches[action.join][`${matchCell.col},${matchCell.row}`] =
                 selectState;
             }
@@ -510,7 +513,10 @@ export function localStorageReducer<T, TArgs extends Array<any>>(
 export function useAppReducer() {
   // Inject undo/redo capabilities and local storage persistence
   return createUndoRedo(
-    localStorageReducer(appReducer, (state) => state.type === "MatchingState")
+    localStorageReducer(
+      appReducer,
+      (state) => state.type === "MatchingState" || state.type === "WelcomeState"
+    )
   );
 }
 

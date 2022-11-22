@@ -1,12 +1,12 @@
 /**
  * Downloads an object into a JSON file
  * @param filename The download file filename
- * @param contentsJson The object to download
+ * @param contentsString The text to download
  */
-export function download(filename: string, contentsJson: any) {
+export function download(filename: string, contentsString: string) {
   const a = document.createElement("a");
   a.href = URL.createObjectURL(
-    new Blob([JSON.stringify(contentsJson)], { type: "application/json" })
+    new Blob([contentsString], { type: "application/json" })
   );
   a.download = filename;
   a.click();
