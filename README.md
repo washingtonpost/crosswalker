@@ -98,7 +98,7 @@ In this redesign of the tool, Crosswalker was made to be more generally useful b
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
 
-In the project directory, you can run:
+In the project directory, install dependencies with `npm install`, then you can run:
 
 ### `npm start`
 
